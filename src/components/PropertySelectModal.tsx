@@ -1,8 +1,8 @@
 import type { Player, HouseLevel } from '@/game/types';
 import { BOARD } from '@/game/boardData';
-import { propertyOwner, houseLevelName } from '@/game/gameLogic';
+import { propertyOwner, houseLevelName, canBuildHouse, getBuildCost } from '@/game/gameLogic';
 import { formatMoneyFull } from '@/game/boardData';
-import { Building2 } from 'lucide-react';
+import { Building2, CheckCircle2 } from 'lucide-react';
 
 interface PropertySelectModalProps {
   players: Player[];
@@ -11,10 +11,11 @@ interface PropertySelectModalProps {
   description: string;
   mode: 'free' | 'build' | 'upgrade';
   currentPlayer: Player;
+  onDone?: () => void;
 }
 
 export default function PropertySelectModal({
-  players, onSelect, title, description, mode, currentPlayer,
+  players, onSelect, title, description, mode, currentPlayer, onDone,
 }: PropertySelectModalProps) {
   const availableProperties = BOARD.filter(t => {
     if (t.type !== 'property') return false;
@@ -22,19 +23,17 @@ export default function PropertySelectModal({
       return !propertyOwner(players, t.id);
     }
     if (mode === 'build') {
-      const owns = currentPlayer.properties.includes(t.id);
-      const level = currentPlayer.houses[t.id] || 0;
-      if (level === 0 || level === 1) return owns && currentPlayer.cash >= (t.housePrice || 0);
-      if (level === 2) return owns && currentPlayer.cash >= (t.okbPrice || 0);
-      return false;
+      return currentPlayer.properties.includes(t.id) && canBuildHouse(currentPlayer, t.id);
     }
     if (mode === 'upgrade') {
       const owns = currentPlayer.properties.includes(t.id);
       const level = currentPlayer.houses[t.id] || 0;
-      return owns && level >= 1 && level <= 2;
+      return owns && level >= 0 && level <= 2;
     }
     return false;
   });
+
+  const allProps = currentPlayer.properties;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -52,15 +51,26 @@ export default function PropertySelectModal({
         </div>
 
         <div className="overflow-y-auto p-4 space-y-2">
-          {availableProperties.length === 0 ? (
+          {mode === 'build' && allProps.length > 0 && (
+            <div className="bg-slate-700/20 rounded-xl p-2 mb-2">
+              <p className="text-slate-500 text-[10px] text-center">
+                Kamu bisa bangun di beberapa tanah sekaligus. Klik tanah untuk bangun, lalu klik "Selesai" untuk lanjut.
+              </p>
+            </div>
+          )}
+          {availableProperties.length === 0 && allProps.length === 0 ? (
             <p className="text-slate-500 text-sm text-center py-8">
-              {mode === 'free' ? 'Tidak ada tanah kosong.' : mode === 'upgrade' ? 'Tidak ada tanah yang bisa di-upgrade.' : 'Tidak bisa bangun rumah saat ini.'}
+              {mode === 'free' ? 'Tidak ada tanah kosong.' : mode === 'upgrade' ? 'Tidak ada tanah yang bisa di-upgrade.' : 'Kamu belum punya tanah.'}
+            </p>
+          ) : mode === 'build' && availableProperties.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center py-8">
+              Semua tanah sudah maksimal atau uang kurang.
             </p>
           ) : (
             availableProperties.map(tile => {
               const level = (currentPlayer.houses[tile.id] || 0) as HouseLevel;
               const isUpgradeToOKB = mode === 'build' && level === 2;
-              const cost = isUpgradeToOKB ? (tile.okbPrice || 0) : (tile.housePrice || 0);
+              const cost = mode === 'build' ? getBuildCost(currentPlayer, tile.id) : 0;
               return (
                 <button
                   key={tile.id}
@@ -77,7 +87,9 @@ export default function PropertySelectModal({
                   {mode === 'free' ? (
                     <span className="text-green-400 text-sm font-bold">Gratis</span>
                   ) : mode === 'upgrade' ? (
-                    <span className="text-green-400 text-sm font-bold">Gratis OKB!</span>
+                    <span className="text-green-400 text-sm font-bold">
+                      {level === 0 ? '+ Rumah Subsidi' : 'Gratis OKB!'}
+                    </span>
                   ) : isUpgradeToOKB ? (
                     <div className="text-right">
                       <p className="text-red-400 text-sm font-bold">{formatMoneyFull(cost)}</p>
@@ -97,12 +109,22 @@ export default function PropertySelectModal({
         </div>
 
         <div className="p-4 border-t border-slate-700">
-          <button
-            onClick={() => onSelect(-1)}
-            className="w-full py-2.5 rounded-xl bg-slate-700 text-slate-300 font-bold text-sm hover:bg-slate-600 transition-colors"
-          >
-            Batal
-          </button>
+          {mode === 'build' && onDone ? (
+            <button
+              onClick={onDone}
+              className="w-full py-2.5 rounded-xl bg-gradient-to-br from-green-500 to-green-700 text-white font-bold text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-all"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              Selesai Bangun
+            </button>
+          ) : (
+            <button
+              onClick={() => onSelect(-1)}
+              className="w-full py-2.5 rounded-xl bg-slate-700 text-slate-300 font-bold text-sm hover:bg-slate-600 transition-colors"
+            >
+              Batal
+            </button>
+          )}
         </div>
       </div>
     </div>

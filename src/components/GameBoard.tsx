@@ -6,6 +6,7 @@ interface GameBoardProps {
   players: Player[];
   currentPlayerId: number;
   stateOwnedTiles?: number[];
+  boardTiles?: Tile[];
 }
 
 const TILE_COLORS: Record<string, string> = {
@@ -110,16 +111,17 @@ function TileView({
   );
 }
 
-export default function GameBoard({ players, currentPlayerId, stateOwnedTiles = [] }: GameBoardProps) {
+export default function GameBoard({ players, currentPlayerId, stateOwnedTiles = [], boardTiles }: GameBoardProps) {
+  const tiles = boardTiles || BOARD;
   const gridSize = 9;
   const grid: (Tile | null)[][] = Array.from({ length: gridSize }, () =>
     Array.from({ length: gridSize }, () => null)
   );
 
-  for (let i = 0; i <= 8; i++) grid[8][i] = BOARD[i];
-  for (let i = 0; i <= 6; i++) grid[7 - i][8] = BOARD[9 + i];
-  for (let i = 0; i <= 8; i++) grid[0][8 - i] = BOARD[16 + i];
-  for (let i = 0; i <= 6; i++) grid[1 + i][0] = BOARD[25 + i];
+  for (let i = 0; i <= 8; i++) grid[8][i] = tiles[i];
+  for (let i = 0; i <= 6; i++) grid[7 - i][8] = tiles[9 + i];
+  for (let i = 0; i <= 8; i++) grid[0][8 - i] = tiles[16 + i];
+  for (let i = 0; i <= 6; i++) grid[1 + i][0] = tiles[25 + i];
 
   const currentPlayer = players[currentPlayerId];
 

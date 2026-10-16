@@ -1,13 +1,17 @@
 import { useState, useCallback, useRef } from 'react';
-import type { Player, GameCard, PendingAction, LogEntry, HouseLevel } from '@/game/types';
+import type { Player, GameCard, PendingAction, LogEntry, HouseLevel, MusibahTier } from '@/game/types';
 import {
-  createPlayers, rollDice, propertyOwner, calculateRent, calculateStateRent, drawCard,
-  getTolDestination, hasBandung, makeLog, isStateOwned, getCheapestProperty,
-  getFirstProperty, getTotalHouseCount, houseLevelName, STATE_OWNED,
-  SALARY, JAIL_BAIL, TAX_PER_PROPERTY, LAPAS_FINE, MAX_JAIL_TURNS,
+  createPlayers, rollDice, rollSingleDie, propertyOwner, calculateRent, calculateStateRent, drawCard,
+  getTolDestinations, hasBandung, makeLog, isStateOwned, isTolTile, getTile, getBoardSnapshot,
+  getCheapestProperty, getFirstProperty, getTotalHouseCount, houseLevelName,
+  getSeverityFromDie, severityLabel, getTieredMoney, getTieredPayPerProperty, getTieredPayPerHouse,
+  canBuildHouse, getBuildCost, getSellValue,
+  STATE_OWNED, BOARD_OVERRIDES,
+  SALARY, JAIL_BAIL, TAX_PER_PROPERTY, LAPAS_FINE, MAX_JAIL_TURNS, TOL_FEE,
+  PENGADILAN_COMPENSATION, STOPWATCH_ROUND_THRESHOLD,
 } from '@/game/gameLogic';
 import {
-  BOARD, BOARD_SIZE, formatMoneyFull,
+  BOARD, BOARD_SIZE, formatMoneyFull, LAPAS_TILE_ID,
 } from '@/game/boardData';
 
 import SetupScreen from '@/components/SetupScreen';
@@ -35,12 +39,14 @@ export default function GameScreen() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [showCard, setShowCard] = useState<GameCard | null>(null);
   const [cardDiceValue, setCardDiceValue] = useState<number | undefined>(undefined);
-  const [showPropertySelect, setShowPropertySelect] = useState<'free' | 'build' | 'upgrade' | null>(null);
-  const [consecutiveDoubles, setConsecutiveDoubles] = useState(0);
+  const [cardSeverity, setCardSeverity] = useState<MusibahTier | undefined>(undefined);
+  const [showPropertySelect, setShowPropertySelect] = useState<'free' | 'build' | 'upgrade' | 'sell' | null>(null);
   const [waitingForEndTurn, setWaitingForEndTurn] = useState(false);
   const [movingPlayer, setMovingPlayer] = useState(false);
   const [atGajian, setAtGajian] = useState(false);
   const [negaraCash, setNegaraCash] = useState(0);
+  const [stopwatchActive, setStopwatchActive] = useState(false);
+  const [boardVersion, setBoardVersion] = useState(0);
 
   const playersRef = useRef(players);
   playersRef.current = players;
@@ -57,7 +63,10 @@ export default function GameScreen() {
 
   const startGame = (count: number) => {
     STATE_OWNED.clear();
+    BOARD_OVERRIDES.clear();
     setNegaraCash(0);
+    setStopwatchActive(false);
+    setBoardVersion(v => v + 1);
     const newPlayers = createPlayers(count);
     setPlayers(newPlayers);
     setCurrentPlayerIndex(0);
@@ -65,16 +74,28 @@ export default function GameScreen() {
     setLogs([makeLog(`Permainan dimulai! ${count} pemain siap menjadi WNI.`, 'info')]);
     setScreen('playing');
     setDiceRolled(false);
-    setConsecutiveDoubles(0);
     setAtGajian(false);
+  };
+
+  const checkStopwatch = () => {
+    if (stopwatchActive) return;
+    const allPassedTwo = playersRef.current.every(p => p.turnsPlayed >= STOPWATCH_ROUND_THRESHOLD);
+    if (allPassedTwo && playersRef.current.length > 0) {
+      setStopwatchActive(true);
+      addLog('Kartu stopwatch sekarang aktif! Semua pemain sudah lewat 2 putaran.', 'card');
+    }
   };
 
   const nextPlayer = () => {
     setPendingAction(null);
     setDiceRolled(false);
-    setConsecutiveDoubles(0);
     setWaitingForEndTurn(false);
     setAtGajian(false);
+
+    const cp = playersRef.current[currentPlayerIndex];
+    if (cp) {
+      updatePlayer(cp.id, { turnsPlayed: cp.turnsPlayed + 1 });
+    }
 
     let nextIdx = (currentPlayerIndex + 1) % players.length;
     while (players[nextIdx]?.isBankrupt) {
@@ -93,6 +114,8 @@ export default function GameScreen() {
 
     setCurrentPlayerIndex(nextIdx);
     addLog(`${players[nextIdx].name} giliran.`, 'info');
+
+    setTimeout(checkStopwatch, 100);
   };
 
   const handleRollDice = () => {
@@ -122,6 +145,7 @@ export default function GameScreen() {
             if (cp.cash >= LAPAS_FINE) {
               addLog(`${cp.name} udah 3 putaran di lapas. Bayar denda ${formatMoneyFull(LAPAS_FINE)}.`, 'bad');
               updatePlayer(cp.id, { cash: cp.cash - LAPAS_FINE, inJail: false, jailTurns: 0 });
+              setNegaraCash(n => n + LAPAS_FINE);
               setPendingAction(null);
               movePlayerSteps(cp.id, total);
             } else {
@@ -141,17 +165,7 @@ export default function GameScreen() {
       }
 
       if (isDoubles) {
-        const newDoubles = consecutiveDoubles + 1;
-        setConsecutiveDoubles(newDoubles);
-        if (newDoubles >= 3) {
-          addLog(`${cp.name} dobel 3x! Kena OTK, masuk lapas!`, 'bad');
-          updatePlayer(cp.id, { position: 8, inJail: true, jailTurns: 0 });
-          setConsecutiveDoubles(0);
-          setWaitingForEndTurn(true);
-          return;
-        }
-      } else {
-        setConsecutiveDoubles(0);
+        addLog(`${cp.name} dapet dadu kembar! Setelah efek lokasi, wajib ambil kartu Takdir.`, 'card');
       }
 
       movePlayerSteps(cp.id, total);
@@ -192,8 +206,10 @@ export default function GameScreen() {
 
   const handleTileLanding = (playerId: number, tileId: number, justGajian: boolean) => {
     const player = playersRef.current.find(p => p.id === playerId)!;
-    const tile = BOARD[tileId];
+    const tile = getTile(tileId);
     addLog(`${player.name} mendarat di ${tile.name}.`, 'move');
+
+    const wasDoubles = dice[0] === dice[1];
 
     switch (tile.type) {
       case 'start':
@@ -225,7 +241,17 @@ export default function GameScreen() {
           setWaitingForEndTurn(true);
         } else {
           const rent = calculateRent(tile, owner);
-          if (player.cash >= rent) {
+          if (owner.inJail) {
+            addLog(`${owner.name} sedang di lapas! Sewa ${formatMoneyFull(rent)} disita negara.`, 'bad');
+            if (player.cash >= rent) {
+              updatePlayer(playerId, { cash: player.cash - rent });
+              setNegaraCash(n => n + rent);
+            } else {
+              addLog(`${player.name} gak bisa bayar sewa! Bangkrut!`, 'bad');
+              updatePlayer(playerId, { isBankrupt: true, cash: 0 });
+            }
+            setWaitingForEndTurn(true);
+          } else if (player.cash >= rent) {
             addLog(`${player.name} bayar sewa ${formatMoneyFull(rent)} ke ${owner.name}.`, 'bad');
             updatePlayer(playerId, { cash: player.cash - rent });
             updatePlayer(owner.id, { cash: owner.cash + rent });
@@ -237,7 +263,7 @@ export default function GameScreen() {
             const newHouses = { ...owner.houses };
             for (const propId of player.properties) {
               const h = player.houses[propId] || 0;
-              if (h > 0) newHouses[propId] = (newHouses[propId] || 0) + h;
+              if (h > 0) newHouses[propId] = ((newHouses[propId] || 0) + h) as HouseLevel;
             }
             updatePlayer(owner.id, { properties: newProps, houses: newHouses, cash: owner.cash + player.cash });
             setWaitingForEndTurn(true);
@@ -247,35 +273,38 @@ export default function GameScreen() {
       }
 
       case 'musibah': {
-        const card = drawCard('musibah');
-        if (player.protectionCards > 0 && card.effect.money && card.effect.money < 0) {
+        const card = drawCard('musibah', stopwatchActive);
+        if (player.protectionCards > 0) {
           addLog(`${player.name} pakai Kartu Pelindung untuk menangkal ${card.title}!`, 'good');
           updatePlayer(playerId, { protectionCards: player.protectionCards - 1 });
           setWaitingForEndTurn(true);
         } else {
           setShowCard(card);
           setCardDiceValue(undefined);
+          setCardSeverity(undefined);
+          setPendingAction({ type: 'musibah-roll', card });
         }
         break;
       }
 
       case 'takdir': {
-        const card = drawCard('takdir');
+        const card = drawCard('takdir', stopwatchActive);
         setShowCard(card);
         setCardDiceValue(undefined);
+        setCardSeverity(undefined);
         break;
       }
 
       case 'targetir': {
-        const card = drawCard('targetir');
+        const card = drawCard('targetir', stopwatchActive);
         setShowCard(card);
         setCardDiceValue(undefined);
+        setCardSeverity(undefined);
         break;
       }
 
       case 'lapas':
-        addLog(`${player.name} kena OTK! Masuk lapas!`, 'bad');
-        updatePlayer(playerId, { position: 8, inJail: true, jailTurns: 0 });
+        addLog(`${player.name} mendarat di Lapas. Kunjungan doang, aman!`, 'info');
         setWaitingForEndTurn(true);
         break;
 
@@ -309,25 +338,26 @@ export default function GameScreen() {
         break;
 
       case 'tol': {
-        const dest = getTolDestination(tileId);
-        addLog(`${player.name} masuk jalan tol, tembus ke ${BOARD[dest].name}!`, 'move');
-        const passStart = dest < tileId;
-        if (passStart) {
-          updatePlayer(playerId, { position: dest, cash: player.cash + SALARY });
-          addLog(`${player.name} lewat Start, gajian ${formatMoneyFull(SALARY)}!`, 'good');
+        const dests = getTolDestinations(tileId);
+        if (dests.length === 0) {
+          addLog(`${player.name} di jalan tol tapi tidak ada tol lain!`, 'info');
+          setWaitingForEndTurn(true);
         } else {
-          updatePlayer(playerId, { position: dest });
+          setPendingAction({ type: 'tol-choose', tileId, tolDestinations: dests });
         }
-        setTimeout(() => {
-          handleTileLanding(playerId, dest, passStart);
-        }, 300);
         break;
       }
 
       case 'tilang':
-        addLog(`${player.name} kena tilang! Dapat 1 tiket tilang.`, 'bad');
-        updatePlayer(playerId, { tilangTickets: player.tilangTickets + 1 });
-        setPendingAction({ type: 'tilang', tileId });
+        addLog(`${player.name} kena tilang! Bayar denda ${formatMoneyFull(500_000)} ke negara.`, 'bad');
+        if (player.cash >= 500_000) {
+          updatePlayer(playerId, { cash: player.cash - 500_000 });
+          setNegaraCash(n => n + 500_000);
+        } else {
+          addLog(`${player.name} gak bisa bayar tilang! Bangkrut!`, 'bad');
+          updatePlayer(playerId, { isBankrupt: true, cash: 0 });
+        }
+        setWaitingForEndTurn(true);
         break;
 
       default:
@@ -339,75 +369,132 @@ export default function GameScreen() {
     }
   };
 
+  const handleMusibahRoll = () => {
+    const dieVal = rollSingleDie();
+    const tier = getSeverityFromDie(dieVal);
+    addLog(`Dadu musibah: ${dieVal} — ${severityLabel(tier)}!`, 'card');
+    setCardDiceValue(dieVal);
+    setCardSeverity(tier);
+  };
+
   const handleCardClose = () => {
     const card = showCard;
     if (!card || !currentPlayer) return;
-    applyCardEffect(currentPlayer.id, card, cardDiceValue);
-    setShowCard(null);
-    setCardDiceValue(undefined);
-  };
 
-  const applyCardEffect = (playerId: number, card: GameCard, diceVal?: number) => {
-    const player = playersRef.current.find(p => p.id === playerId)!;
-    const effect = card.effect;
-
-    if (effect.rollDice && diceVal === undefined) {
-      setShowCard(card);
-      setPendingAction({ type: 'card-dice', card });
+    if (card.type === 'musibah' && cardSeverity === undefined) {
       return;
     }
 
-    if (effect.rollDice && diceVal !== undefined) {
-      if (diceVal % 2 === 0) {
-        const reward = effect.evenReward || 0;
-        addLog(`Genap! ${player.name} untung ${formatMoneyFull(reward)}!`, 'good');
-        updatePlayer(playerId, { cash: player.cash + reward });
-      } else {
-        const penalty = effect.oddPenalty || 0;
-        addLog(`Ganjil! ${player.name} sial, bayar ${formatMoneyFull(penalty)}.`, 'bad');
-        if (player.cash >= penalty) {
-          updatePlayer(playerId, { cash: player.cash - penalty });
-        } else {
-          addLog(`${player.name} gak bisa bayar! Bangkrut!`, 'bad');
-          updatePlayer(playerId, { isBankrupt: true, cash: 0 });
-        }
-      }
+    applyCardEffect(currentPlayer.id, card, cardDiceValue, cardSeverity);
+    setShowCard(null);
+    setCardDiceValue(undefined);
+    setCardSeverity(undefined);
+  };
+
+  const applyCardEffect = (playerId: number, card: GameCard, diceVal?: number, severity?: MusibahTier) => {
+    const player = playersRef.current.find(p => p.id === playerId)!;
+    const effect = card.effect;
+
+    if (effect.goToJail) {
+      addLog(`${player.name} masuk lapas!`, 'bad');
+      updatePlayer(playerId, { position: LAPAS_TILE_ID, inJail: true, jailTurns: 0 });
       setWaitingForEndTurn(true);
       return;
     }
 
-    if (effect.money !== undefined) {
-      const amount = effect.money;
-      if (amount > 0) addLog(`${player.name} dapat ${formatMoneyFull(amount)}!`, 'good');
-      else addLog(`${player.name} bayar ${formatMoneyFull(-amount)}.`, 'bad');
-      if (player.cash + amount >= 0) {
-        updatePlayer(playerId, { cash: player.cash + amount });
+    if (effect.getOutCard) {
+      addLog(`${player.name} dapat Kartu Bebas Lapas!`, 'good');
+      updatePlayer(playerId, { getOutCards: player.getOutCards + 1 });
+      setWaitingForEndTurn(true);
+      return;
+    }
+
+    if (effect.protection) {
+      addLog(`${player.name} dapat Kartu Pelindung!`, 'good');
+      updatePlayer(playerId, { protectionCards: player.protectionCards + 1 });
+      setWaitingForEndTurn(true);
+      return;
+    }
+
+    if (effect.freeProperty) {
+      setShowPropertySelect('free');
+      return;
+    }
+
+    if (effect.freeUpgrade) {
+      setShowPropertySelect('upgrade');
+      return;
+    }
+
+    if (effect.galiLubang || effect.jualWajib) {
+      const targetId = getCheapestProperty(player);
+      if (targetId === null) {
+        addLog(`${player.name} gak punya tanah. Aman!`, 'good');
+        setWaitingForEndTurn(true);
+        return;
+      }
+      const tile = getTile(targetId);
+      const refund = Math.floor((tile.price || 0) * 0.5);
+      addLog(`${player.name} tanah ${tile.name} disita negara. Dapat ganti rugi ${formatMoneyFull(refund)}.`, 'bad');
+      const newProps = player.properties.filter(id => id !== targetId);
+      const newHouses = { ...player.houses };
+      delete newHouses[targetId];
+      updatePlayer(playerId, { properties: newProps, houses: newHouses, cash: player.cash + refund });
+      STATE_OWNED.add(targetId);
+      addLog(`${tile.name} sekarang milik negara. Siapa pun yang injak bayar sewu ke negara.`, 'card');
+      setBoardVersion(v => v + 1);
+      setWaitingForEndTurn(true);
+      return;
+    }
+
+    if (effect.pembebasanLahan) {
+      const targetId = getFirstProperty(player);
+      if (targetId === null) {
+        addLog(`${player.name} gak punya tanah. Aman!`, 'good');
+        setWaitingForEndTurn(true);
+        return;
+      }
+      const tile = getTile(targetId);
+      const refund = Math.floor((tile.price || 0) * 0.5);
+      addLog(`${player.name} tanah ${tile.name} digusur untuk jalan tol! Gak boleh nolak. Dapat ganti rugi ${formatMoneyFull(refund)}.`, 'bad');
+      const newProps = player.properties.filter(id => id !== targetId);
+      const newHouses = { ...player.houses };
+      delete newHouses[targetId];
+      updatePlayer(playerId, { properties: newProps, houses: newHouses, cash: player.cash + refund });
+      BOARD_OVERRIDES.set(targetId, { ...tile, type: 'tol', isTol: true, name: `Tol ${tile.name}` });
+      addLog(`${tile.name} berubah menjadi jalan tol!`, 'card');
+      setBoardVersion(v => v + 1);
+      setWaitingForEndTurn(true);
+      return;
+    }
+
+    let moneyChange = 0;
+    let payToNegara = false;
+
+    if (card.tieredMoney && severity) {
+      moneyChange = -getTieredMoney(card, severity);
+      payToNegara = true;
+    } else if (card.tieredPayPerProperty && severity) {
+      moneyChange = -(player.properties.length * getTieredPayPerProperty(card, severity));
+    } else if (card.tieredPayPerHouse && severity) {
+      moneyChange = -(getTotalHouseCount(player) * getTieredPayPerHouse(card, severity));
+    } else if (effect.money !== undefined) {
+      moneyChange = effect.money;
+    } else if (effect.payPerProperty !== undefined) {
+      moneyChange = -(player.properties.length * effect.payPerProperty);
+      payToNegara = true;
+    }
+
+    if (moneyChange !== 0) {
+      if (moneyChange > 0) {
+        addLog(`${player.name} dapat ${formatMoneyFull(moneyChange)}!`, 'good');
+        updatePlayer(playerId, { cash: player.cash + moneyChange });
       } else {
-        addLog(`${player.name} gak bisa bayar! Bangkrut!`, 'bad');
-        updatePlayer(playerId, { isBankrupt: true, cash: 0 });
-      }
-    }
-
-    if (effect.payPerProperty !== undefined) {
-      const total = player.properties.length * effect.payPerProperty;
-      if (total > 0) {
-        if (player.cash >= total) {
-          addLog(`${player.name} bayar ${formatMoneyFull(total)} (${player.properties.length} properti x ${formatMoneyFull(effect.payPerProperty)}).`, 'bad');
-          updatePlayer(playerId, { cash: player.cash - total });
-        } else {
-          addLog(`${player.name} gak bisa bayar! Bangkrut!`, 'bad');
-          updatePlayer(playerId, { isBankrupt: true, cash: 0 });
-        }
-      }
-    }
-
-    if (effect.payPerHouse !== undefined) {
-      const houseCount = getTotalHouseCount(player);
-      const total = houseCount * effect.payPerHouse;
-      if (total > 0) {
-        if (player.cash >= total) {
-          addLog(`${player.name} bayar ${formatMoneyFull(total)} (${houseCount} rumah x ${formatMoneyFull(effect.payPerHouse)}).`, 'bad');
-          updatePlayer(playerId, { cash: player.cash - total });
+        const amount = -moneyChange;
+        if (player.cash >= amount) {
+          addLog(`${player.name} bayar ${formatMoneyFull(amount)}.`, 'bad');
+          updatePlayer(playerId, { cash: player.cash - amount });
+          if (payToNegara) setNegaraCash(n => n + amount);
         } else {
           addLog(`${player.name} gak bisa bayar! Bangkrut!`, 'bad');
           updatePlayer(playerId, { isBankrupt: true, cash: 0 });
@@ -439,100 +526,17 @@ export default function GameScreen() {
       });
     }
 
-    if (effect.periksaTilang) {
-      if (player.tilangTickets > 0) {
-        const fine = player.tilangTickets * 500_000;
-        addLog(`${player.name} punya ${player.tilangTickets} tiket tilang. Bayar ${formatMoneyFull(fine)}.`, 'bad');
-        if (player.cash >= fine) {
-          updatePlayer(playerId, { cash: player.cash - fine, tilangTickets: 0 });
-        } else {
-          addLog(`${player.name} gak bisa bayar! Bangkrut!`, 'bad');
-          updatePlayer(playerId, { isBankrupt: true, cash: 0 });
-        }
-      } else {
-        addLog(`${player.name} bersih, gak ada tiket tilang. Selamat!`, 'good');
-      }
-    }
-
-    if (effect.goToJail) {
-      addLog(`${player.name} masuk lapas!`, 'bad');
-      updatePlayer(playerId, { position: 8, inJail: true, jailTurns: 0 });
-      setWaitingForEndTurn(true);
-      return;
-    }
-
-    if (effect.getOutCard) {
-      addLog(`${player.name} dapat Kartu Bebas Lapas!`, 'good');
-      updatePlayer(playerId, { getOutCards: player.getOutCards + 1 });
-    }
-
-    if (effect.protection) {
-      addLog(`${player.name} dapat Kartu Pelindung!`, 'good');
-      updatePlayer(playerId, { protectionCards: player.protectionCards + 1 });
-    }
-
     if (effect.moveTo !== undefined) {
       const dest = effect.moveTo;
       const passStart = dest < player.position;
       if (passStart) {
-        addLog(`${player.name} pindah ke ${BOARD[dest].name}, lewat Start, gajian!`, 'good');
+        addLog(`${player.name} pindah ke ${getTile(dest).name}, lewat Start, gajian!`, 'good');
         updatePlayer(playerId, { position: dest, cash: player.cash + SALARY });
       } else {
-        addLog(`${player.name} pindah ke ${BOARD[dest].name}.`, 'move');
+        addLog(`${player.name} pindah ke ${getTile(dest).name}.`, 'move');
         updatePlayer(playerId, { position: dest });
       }
       setTimeout(() => handleTileLanding(playerId, dest, passStart), 300);
-      return;
-    }
-
-    if (effect.freeProperty) {
-      setShowPropertySelect('free');
-      return;
-    }
-
-    if (effect.freeUpgrade) {
-      setShowPropertySelect('upgrade');
-      return;
-    }
-
-    if (effect.galiLubang || effect.jualWajib) {
-      const targetId = getCheapestProperty(player);
-      if (targetId === null) {
-        addLog(`${player.name} gak punya tanah. Aman!`, 'good');
-        setWaitingForEndTurn(true);
-        return;
-      }
-      const tile = BOARD[targetId];
-      const refund = Math.floor((tile.price || 0) * 0.5);
-      addLog(`${player.name} tanah ${tile.name} disita negara. Dapat ganti rugi ${formatMoneyFull(refund)}.`, 'bad');
-      const newProps = player.properties.filter(id => id !== targetId);
-      const newHouses = { ...player.houses };
-      delete newHouses[targetId];
-      updatePlayer(playerId, { properties: newProps, houses: newHouses, cash: player.cash + refund });
-      STATE_OWNED.add(targetId);
-      addLog(`${tile.name} sekarang milik negara. Siapa pun yang injak bayar sewa ke negara.`, 'card');
-      setWaitingForEndTurn(true);
-      return;
-    }
-
-    if (effect.pembebasanLahan) {
-      const targetId = getFirstProperty(player);
-      if (targetId === null) {
-        addLog(`${player.name} gak punya tanah. Aman!`, 'good');
-        setWaitingForEndTurn(true);
-        return;
-      }
-      const tile = BOARD[targetId];
-      const refund = Math.floor((tile.price || 0) * 0.5);
-      addLog(`${player.name} tanah ${tile.name} digusur untuk jalan tol! Gak boleh nolak. Dapat ganti rugi ${formatMoneyFull(refund)}.`, 'bad');
-      const newProps = player.properties.filter(id => id !== targetId);
-      const newHouses = { ...player.houses };
-      delete newHouses[targetId];
-      updatePlayer(playerId, { properties: newProps, houses: newHouses, cash: player.cash + refund });
-      const updatedBoard = [...BOARD];
-      updatedBoard[targetId] = { ...tile, type: 'tol', isTol: true, name: `Tol ${tile.name}` };
-      addLog(`${tile.name} berubah menjadi jalan tol!`, 'card');
-      setWaitingForEndTurn(true);
       return;
     }
 
@@ -541,7 +545,7 @@ export default function GameScreen() {
 
   const handleBuy = () => {
     if (!pendingAction?.tileId || !currentPlayer) return;
-    const tile = BOARD[pendingAction.tileId];
+    const tile = getTile(pendingAction.tileId);
     if (currentPlayer.cash < (tile.price || 0)) return;
     addLog(`${currentPlayer.name} beli ${tile.name} seharga ${formatMoneyFull(tile.price || 0)}.`, 'money');
     updatePlayer(currentPlayer.id, {
@@ -563,6 +567,7 @@ export default function GameScreen() {
     if (!currentPlayer) return;
     addLog(`${currentPlayer.name} bayar jaminan lapas ${formatMoneyFull(JAIL_BAIL)}.`, 'bad');
     updatePlayer(currentPlayer.id, { cash: currentPlayer.cash - JAIL_BAIL, inJail: false, jailTurns: 0 });
+    setNegaraCash(n => n + JAIL_BAIL);
     setPendingAction(null);
     setWaitingForEndTurn(true);
   };
@@ -582,21 +587,27 @@ export default function GameScreen() {
     addLog(`${currentPlayer.name} lempar dadu: ${jailDice[0]} + ${jailDice[1]}`, 'move');
 
     if (pendingAction?.type === 'pengadilan') {
-      const total = jailDice[0] + jailDice[1];
-      if (total % 2 === 0) {
-        addLog(`Genap! ${currentPlayer.name} bebas dari pengadilan.`, 'good');
-        setPendingAction(null);
-        setWaitingForEndTurn(true);
-      } else {
-        addLog(`Ganjil! ${currentPlayer.name} masuk lapas + bayar denda ${formatMoneyFull(LAPAS_FINE)}.`, 'bad');
+      const dieVal = rollSingleDie();
+      addLog(`Dadu pengadilan: ${dieVal}`, 'move');
+      if (dieVal >= 5) {
+        addLog(`Menang pengadilan! ${currentPlayer.name} dapat kompensasi ${formatMoneyFull(PENGADILAN_COMPENSATION)}.`, 'good');
+        updatePlayer(currentPlayer.id, { cash: currentPlayer.cash + PENGADILAN_COMPENSATION });
+      } else if (dieVal >= 3) {
+        addLog(`Kalah pengadilan! ${currentPlayer.name} masuk lapas + bayar denda ${formatMoneyFull(LAPAS_FINE)}.`, 'bad');
         if (currentPlayer.cash >= LAPAS_FINE) {
-          updatePlayer(currentPlayer.id, { cash: currentPlayer.cash - LAPAS_FINE, position: 8, inJail: true, jailTurns: 0 });
+          updatePlayer(currentPlayer.id, { cash: currentPlayer.cash - LAPAS_FINE, position: LAPAS_TILE_ID, inJail: true, jailTurns: 0 });
+          setNegaraCash(n => n + LAPAS_FINE);
         } else {
           updatePlayer(currentPlayer.id, { isBankrupt: true, cash: 0 });
         }
-        setPendingAction(null);
-        setWaitingForEndTurn(true);
+      } else {
+        const seized = Math.floor(currentPlayer.cash * 0.5);
+        addLog(`Brutal! ${currentPlayer.name} masuk lapas + 50% uang (${formatMoneyFull(seized)}) disita negara.`, 'bad');
+        updatePlayer(currentPlayer.id, { cash: currentPlayer.cash - seized, position: LAPAS_TILE_ID, inJail: true, jailTurns: 0 });
+        setNegaraCash(n => n + seized);
       }
+      setPendingAction(null);
+      setWaitingForEndTurn(true);
     } else {
       if (isDoubles) {
         addLog(`Dobel! ${currentPlayer.name} bebas dari lapas!`, 'good');
@@ -609,6 +620,7 @@ export default function GameScreen() {
           if (currentPlayer.cash >= LAPAS_FINE) {
             addLog(`3 putaran habis. Bayar denda ${formatMoneyFull(LAPAS_FINE)} dan keluar.`, 'bad');
             updatePlayer(currentPlayer.id, { cash: currentPlayer.cash - LAPAS_FINE, inJail: false, jailTurns: 0 });
+            setNegaraCash(n => n + LAPAS_FINE);
             setPendingAction(null);
             movePlayerSteps(currentPlayer.id, jailDice[0] + jailDice[1]);
           } else {
@@ -630,9 +642,26 @@ export default function GameScreen() {
   const handlePayFine = (amount: number) => {
     if (!currentPlayer) return;
     if (currentPlayer.cash < amount) return;
-    addLog(`${currentPlayer.name} bayar ${formatMoneyFull(amount)}.`, 'bad');
+    addLog(`${currentPlayer.name} bayar ${formatMoneyFull(amount)} ke negara.`, 'bad');
     updatePlayer(currentPlayer.id, { cash: currentPlayer.cash - amount });
     setNegaraCash(n => n + amount);
+    setPendingAction(null);
+    setWaitingForEndTurn(true);
+  };
+
+  const handleTolChoose = (destId: number) => {
+    if (!currentPlayer) return;
+    const cp = currentPlayer;
+    if (cp.cash < TOL_FEE) {
+      addLog(`${cp.name} gak bisa bayar tol ${formatMoneyFull(TOL_FEE)}! Bangkrut!`, 'bad');
+      updatePlayer(cp.id, { isBankrupt: true, cash: 0 });
+      setPendingAction(null);
+      setWaitingForEndTurn(true);
+      return;
+    }
+    addLog(`${cp.name} bayar tol ${formatMoneyFull(TOL_FEE)} dan pindah ke ${getTile(destId).name}.`, 'move');
+    updatePlayer(cp.id, { cash: cp.cash - TOL_FEE, position: destId });
+    setNegaraCash(n => n + TOL_FEE);
     setPendingAction(null);
     setWaitingForEndTurn(true);
   };
@@ -640,16 +669,18 @@ export default function GameScreen() {
   const handlePropertySelect = (tileId: number) => {
     if (tileId === -1) {
       setShowPropertySelect(null);
-      setWaitingForEndTurn(true);
+      if (showPropertySelect !== 'build') {
+        setWaitingForEndTurn(true);
+      }
       return;
     }
     if (showPropertySelect === 'free') {
-      addLog(`${currentPlayer.name} dapat ${BOARD[tileId].name} gratis!`, 'good');
+      addLog(`${currentPlayer.name} dapat ${getTile(tileId).name} gratis!`, 'good');
       updatePlayer(currentPlayer.id, { properties: [...currentPlayer.properties, tileId] });
       setShowPropertySelect(null);
       setWaitingForEndTurn(true);
     } else if (showPropertySelect === 'build') {
-      const tile = BOARD[tileId];
+      const tile = getTile(tileId);
       const level = currentPlayer.houses[tileId] || 0;
       if (level >= 2) {
         addLog(`${currentPlayer.name} upgrade ${tile.name} ke Rumah OKB!`, 'money');
@@ -664,9 +695,8 @@ export default function GameScreen() {
           houses: { ...currentPlayer.houses, [tileId]: (level + 1) as HouseLevel },
         });
       }
-      setShowPropertySelect(null);
     } else if (showPropertySelect === 'upgrade') {
-      const tile = BOARD[tileId];
+      const tile = getTile(tileId);
       const level = currentPlayer.houses[tileId] || 0;
       if (level >= 1 && level <= 2) {
         addLog(`${currentPlayer.name} dapat upgrade gratis: ${tile.name} jadi Rumah OKB!`, 'good');
@@ -684,23 +714,49 @@ export default function GameScreen() {
     }
   };
 
-  const handleBuildHouse = () => {
-    setShowPropertySelect('build');
+  const handleGajianBuildDone = () => {
+    setAtGajian(false);
+    const cp = playersRef.current[currentPlayerIndex];
+    if (cp && !cp.inJail) {
+      const wasDoubles = dice[0] === dice[1];
+      if (wasDoubles) {
+        const card = drawCard('takdir', stopwatchActive);
+        addLog(`${cp.name} ambil kartu Takdir karena dadu kembar.`, 'card');
+        setShowCard(card);
+        setCardDiceValue(undefined);
+        setCardSeverity(undefined);
+      } else {
+        setWaitingForEndTurn(true);
+      }
+    }
   };
 
-  const handleGajianBuild = () => {
-    setShowPropertySelect('build');
+  const handleGajianContinue = () => {
+    setAtGajian(false);
+    const cp = playersRef.current[currentPlayerIndex];
+    if (cp && !cp.inJail) {
+      const wasDoubles = dice[0] === dice[1];
+      if (wasDoubles) {
+        const card = drawCard('takdir', stopwatchActive);
+        addLog(`${cp.name} ambil kartu Takdir karena dadu kembar.`, 'card');
+        setShowCard(card);
+        setCardDiceValue(undefined);
+        setCardSeverity(undefined);
+      } else {
+        setWaitingForEndTurn(true);
+      }
+    }
   };
 
   if (screen === 'setup') return <SetupScreen onStart={startGame} />;
   if (screen === 'gameover') return <GameOverScreen players={players} negaraCash={negaraCash} onRestart={() => setScreen('setup')} />;
   if (!currentPlayer) return null;
 
-  const currentTile = BOARD[currentPlayer.position];
+  const currentTile = getTile(currentPlayer.position);
   const tileOwner = pendingAction?.tileId !== undefined ? propertyOwner(players, pendingAction.tileId) : null;
-  const canBuy = currentPlayer.cash >= (BOARD[pendingAction?.tileId ?? -1]?.price || 0);
-  const canBuildNow = atGajian && !diceRolled && !pendingAction && !showCard && currentPlayer.properties.length > 0;
+  const canBuy = currentPlayer.cash >= (getTile(pendingAction?.tileId ?? -1)?.price || 0);
   const stateOwned = isStateOwned(currentPlayer.position);
+  const boardTiles = getBoardSnapshot();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 p-2 sm:p-4">
@@ -712,7 +768,7 @@ export default function GameScreen() {
             </div>
             <div>
               <h1 className="text-white font-black text-base sm:text-lg leading-tight">WNI Simulator</h1>
-              <p className="text-slate-500 text-xs">Putaran {turn}</p>
+              <p className="text-slate-500 text-xs">Putaran {turn}{stopwatchActive && ' • Stopwatch aktif'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -730,7 +786,7 @@ export default function GameScreen() {
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3">
           <div className="space-y-3">
-            <GameBoard players={players} currentPlayerId={currentPlayerIndex} stateOwnedTiles={Array.from(STATE_OWNED)} />
+            <GameBoard key={boardVersion} players={players} currentPlayerId={currentPlayerIndex} stateOwnedTiles={Array.from(STATE_OWNED)} boardTiles={boardTiles} />
 
             <div className="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/50 flex flex-col sm:flex-row items-center justify-between gap-4">
               <Dice
@@ -747,7 +803,7 @@ export default function GameScreen() {
                     <p className="text-amber-400 text-xs font-bold animate-pulse">Saatnya gajian! Bangun/upgrade rumah sebelum jalan.</p>
                     {currentPlayer.properties.length > 0 && (
                       <button
-                        onClick={handleGajianBuild}
+                        onClick={() => setShowPropertySelect('build')}
                         className="px-4 py-2 rounded-xl bg-green-600/80 text-white font-bold text-sm flex items-center gap-2 hover:bg-green-600 transition-colors"
                       >
                         <Building2 className="w-4 h-4" />
@@ -755,7 +811,7 @@ export default function GameScreen() {
                       </button>
                     )}
                     <button
-                      onClick={() => { setAtGajian(false); }}
+                      onClick={handleGajianContinue}
                       className="px-4 py-1.5 rounded-xl bg-slate-600 text-slate-300 text-xs font-bold hover:bg-slate-500 transition-colors"
                     >
                       Lanjut Jalan
@@ -774,7 +830,7 @@ export default function GameScreen() {
                 {currentPlayer.inJail && !pendingAction && !showCard && !diceRolled && !atGajian && (
                   <button
                     onClick={() => setPendingAction({ type: 'jail' })}
-                    className="px-6 py-3 rounded-xl bg-orange-600 text-white font-bold flex items-center gap-2 hover:scale-105 transition-transform"
+                    className="px-6 py-3 rounded-xl bg-orange-600 text-white font-bold flex items-center gap-2 hover:scale-105 active:scale-95 transition-transform"
                   >
                     Keluar dari Lapas
                   </button>
@@ -794,7 +850,7 @@ export default function GameScreen() {
                 <p className="text-white font-bold text-sm">{currentTile.name}</p>
                 {currentTile.island && <p className="text-slate-500 text-xs">Pulau {currentTile.island}</p>}
                 {stateOwned && <p className="text-red-400 text-xs mt-1 font-bold">Milik Negara</p>}
-                {currentTile.price && <p className="text-amber-400 text-xs mt-1">Harga: {formatMoneyFull(currentTile.price)}</p>}
+                {currentTile.price && !stateOwned && <p className="text-amber-400 text-xs mt-1">Harga: {formatMoneyFull(currentTile.price)}</p>}
                 {currentTile.rent && <p className="text-slate-500 text-xs">Sewa tanah: {formatMoneyFull(currentTile.rent)}</p>}
                 {currentTile.rentSubsidi1 && <p className="text-green-400 text-xs">Sewa 1 RS: {formatMoneyFull(currentTile.rentSubsidi1)}</p>}
                 {currentTile.rentSubsidi2 && <p className="text-green-400 text-xs">Sewa 2 RS: {formatMoneyFull(currentTile.rentSubsidi2)}</p>}
@@ -806,13 +862,20 @@ export default function GameScreen() {
       </div>
 
       {showCard && (
-        <CardModal card={showCard} onClose={handleCardClose} diceValue={cardDiceValue} />
+        <CardModal
+          card={showCard}
+          onClose={handleCardClose}
+          diceValue={cardDiceValue}
+          severity={cardSeverity}
+          onRollMusibah={handleMusibahRoll}
+          canClose={cardSeverity !== undefined || showCard.type !== 'musibah'}
+        />
       )}
 
       {pendingAction && (
         <ActionModal
           action={pendingAction}
-          tile={BOARD[pendingAction.tileId ?? currentPlayer.position]}
+          tile={getTile(pendingAction.tileId ?? currentPlayer.position)}
           currentPlayer={currentPlayer}
           owner={tileOwner}
           onBuy={handleBuy}
@@ -821,6 +884,7 @@ export default function GameScreen() {
           onUseGetOutCard={handleUseGetOutCard}
           onRollForJail={handleRollForJail}
           onPayFine={handlePayFine}
+          onTolChoose={handleTolChoose}
           onDismiss={() => { setPendingAction(null); setWaitingForEndTurn(true); }}
           canAfford={canBuy}
         />
@@ -831,9 +895,10 @@ export default function GameScreen() {
           players={players}
           onSelect={handlePropertySelect}
           title={showPropertySelect === 'free' ? 'Properti Gratis' : showPropertySelect === 'upgrade' ? 'Upgrade Gratis' : 'Bangun/Upgrade Rumah'}
-          description={showPropertySelect === 'free' ? 'Pilih tanah kosong' : showPropertySelect === 'upgrade' ? 'Pilih tanah untuk di-upgrade' : 'Pilih tanah milikmu'}
-          mode={showPropertySelect}
+          description={showPropertySelect === 'free' ? 'Pilih tanah kosong' : showPropertySelect === 'upgrade' ? 'Pilih tanah untuk di-upgrade' : 'Pilih tanah milikmu (bisa bangun di beberapa tanah)'}
+          mode={showPropertySelect as 'free' | 'build' | 'upgrade'}
           currentPlayer={currentPlayer}
+          onDone={showPropertySelect === 'build' ? handleGajianBuildDone : undefined}
         />
       )}
     </div>

@@ -68,9 +68,6 @@ export default function PlayerPanel({ players, currentPlayerId }: PlayerPanelPro
                 {player.properties.length} tanah
               </span>
               <span>Total: {formatMoneyFull(netWorth)}</span>
-              {player.tilangTickets > 0 && (
-                <span className="text-yellow-400">{player.tilangTickets} tilang</span>
-              )}
             </div>
           </div>
         );

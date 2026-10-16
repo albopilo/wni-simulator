@@ -45,12 +45,19 @@ export interface Player {
   getOutCards: number;
   isBankrupt: boolean;
   turnsPlayed: number;
-  tilangTickets: number;
   protectionCards: number;
   pendingGajian: boolean;
 }
 
 export type CardType = 'musibah' | 'takdir' | 'targetir';
+
+export type MusibahTier = 'ringan' | 'sedang' | 'brutal';
+
+export interface MusibahEffect {
+  ringan: number;
+  sedang: number;
+  brutal: number;
+}
 
 export interface GameCard {
   id: string;
@@ -59,6 +66,10 @@ export interface GameCard {
   type: CardType;
   effect: CardEffect;
   hasStopwatch?: boolean;
+  // For musibah cards with tiered effects
+  tieredMoney?: MusibahEffect;
+  tieredPayPerProperty?: MusibahEffect;
+  tieredPayPerHouse?: MusibahEffect;
 }
 
 export interface CardEffect {
@@ -73,7 +84,6 @@ export interface CardEffect {
   rollDice?: boolean;
   evenReward?: number;
   oddPenalty?: number;
-  tilang?: boolean;
   freeProperty?: boolean;
   protection?: boolean;
   freeUpgrade?: boolean;
@@ -81,16 +91,16 @@ export interface CardEffect {
   gubernurFoya?: boolean;
   galiLubang?: boolean;
   jualWajib?: boolean;
-  periksaTilang?: boolean;
 }
 
 export interface PendingAction {
-  type: 'buy' | 'jail' | 'tilang' | 'pengadilan' | 'pungli' | 'card-dice' | 'free-property' | 'free-upgrade' | 'pembebasan' | 'jual-wajib' | 'sita-negara' | 'gajian-build';
+  type: 'buy' | 'jail' | 'pengadilan' | 'pungli' | 'card-dice' | 'musibah-roll' | 'free-property' | 'free-upgrade' | 'pembebasan' | 'jual-wajib' | 'gajian-build' | 'tol-choose' | 'sell';
   tileId?: number;
   card?: GameCard;
   diceValue?: number;
   message?: string;
   amount?: number;
+  tolDestinations?: number[];
 }
 
 export interface LogEntry {

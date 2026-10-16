@@ -1,13 +1,22 @@
-import type { GameCard } from '@/game/types';
-import { AlertTriangle, Sparkles, Target } from 'lucide-react';
+import type { GameCard, MusibahTier } from '@/game/types';
+import { AlertTriangle, Sparkles, Target, Dice5 } from 'lucide-react';
 
 interface CardModalProps {
   card: GameCard;
   onClose: () => void;
   diceValue?: number;
+  severity?: MusibahTier;
+  onRollMusibah?: () => void;
+  canClose: boolean;
 }
 
-export default function CardModal({ card, onClose, diceValue }: CardModalProps) {
+const SEVERITY_STYLE: Record<MusibahTier, { color: string; label: string; bg: string }> = {
+  ringan: { color: 'text-green-400', label: 'Ringan', bg: 'bg-green-500/20' },
+  sedang: { color: 'text-yellow-400', label: 'Sedang', bg: 'bg-yellow-500/20' },
+  brutal: { color: 'text-red-400', label: 'Brutal', bg: 'bg-red-500/20' },
+};
+
+export default function CardModal({ card, onClose, diceValue, severity, onRollMusibah, canClose }: CardModalProps) {
   const isMusibah = card.type === 'musibah';
   const isTakdir = card.type === 'takdir';
   const isTargetir = card.type === 'targetir';
@@ -26,6 +35,8 @@ export default function CardModal({ card, onClose, diceValue }: CardModalProps) 
     : isTakdir
       ? 'bg-gradient-to-br from-blue-500 to-blue-700'
       : 'bg-gradient-to-br from-fuchsia-500 to-purple-700';
+
+  const showRollButton = isMusibah && severity === undefined && onRollMusibah;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s_ease]">
@@ -51,18 +62,49 @@ export default function CardModal({ card, onClose, diceValue }: CardModalProps) 
 
         <p className="text-slate-300 text-sm leading-relaxed mb-4">{card.description}</p>
 
-        {diceValue !== undefined && (
-          <div className="bg-slate-800/60 rounded-xl p-4 mb-4 text-center">
-            <p className="text-slate-400 text-xs mb-1">Dadu: {diceValue} — {diceValue % 2 === 0 ? 'Genap (Untung!)' : 'Ganjil (Sial!)'}</p>
+        {isMusibah && (
+          <div className="bg-slate-800/60 rounded-xl p-4 mb-4">
+            <p className="text-slate-400 text-xs mb-2 text-center">
+              Kocok 1 dadu untuk menentukan tingkat musibah:
+            </p>
+            <div className="flex justify-center gap-2 text-[10px] mb-3">
+              <span className="text-green-400">5-6: Ringan</span>
+              <span className="text-yellow-400">3-4: Sedang</span>
+              <span className="text-red-400">1-2: Brutal</span>
+            </div>
+            {diceValue !== undefined && severity !== undefined && (
+              <div className="text-center">
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${SEVERITY_STYLE[severity].bg}`}>
+                  <Dice5 className="w-4 h-4 text-white" />
+                  <span className="text-white font-bold text-sm">Dadu: {diceValue}</span>
+                  <span className={`${SEVERITY_STYLE[severity].color} font-bold text-sm`}>
+                    {SEVERITY_STYLE[severity].label}!
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        <button
-          onClick={onClose}
-          className={`w-full py-3 rounded-xl font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98] ${btnClass}`}
-        >
-          Terima Nasib
-        </button>
+        {showRollButton ? (
+          <button
+            onClick={onRollMusibah}
+            className={`w-full py-3 rounded-xl font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98] ${btnClass} flex items-center justify-center gap-2`}
+          >
+            <Dice5 className="w-5 h-5" />
+            Kocok Dadu Musibah
+          </button>
+        ) : (
+          <button
+            onClick={onClose}
+            disabled={!canClose}
+            className={`w-full py-3 rounded-xl font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98] ${btnClass} ${
+              !canClose ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            {canClose ? 'Terima Nasib' : 'Kocok dadu dulu...'}
+          </button>
+        )}
       </div>
     </div>
   );
