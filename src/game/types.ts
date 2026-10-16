@@ -47,6 +47,7 @@ export interface Player {
   turnsPlayed: number;
   protectionCards: number;
   pendingGajian: boolean;
+  consecutiveDoubles: number;
 }
 
 export type CardType = 'musibah' | 'takdir' | 'targetir';

@@ -1,5 +1,5 @@
 import type { Player, Tile, HouseLevel } from '@/game/types';
-import { BOARD, BOARD_SIZE, formatMoneyFull } from '@/game/boardData';
+import { BOARD, formatMoneyFull } from '@/game/boardData';
 import { propertyOwner, isStateOwned } from '@/game/gameLogic';
 import { Dices } from 'lucide-react';
 
@@ -12,6 +12,7 @@ interface GameBoardProps {
   diceValues?: [number, number];
   diceRolled?: boolean;
   currentPlayerObj?: Player;
+  onTileClick?: (tile: Tile) => void;
 }
 
 const ISLAND_COLORS: Record<string, string> = {
@@ -53,8 +54,27 @@ function HouseIndicator({ level }: { level: HouseLevel }) {
   );
 }
 
+function TileBg({ tile }: { tile: Tile }) {
+  const bgMap: Record<string, string> = {
+    start: 'bg-gradient-to-br from-amber-500 to-orange-700',
+    musibah: 'bg-gradient-to-br from-red-800 to-red-950',
+    takdir: 'bg-gradient-to-br from-blue-800 to-blue-950',
+    targetir: 'bg-gradient-to-br from-rose-800 to-stone-900',
+    lapas: 'bg-gradient-to-br from-orange-700 to-amber-900',
+    pajak: 'bg-gradient-to-br from-teal-700 to-cyan-900',
+    pengadilan: 'bg-gradient-to-br from-indigo-700 to-indigo-950',
+    pungli: 'bg-gradient-to-br from-yellow-600 to-amber-800',
+    tol: 'bg-gradient-to-br from-cyan-600 to-cyan-900',
+    tilang: 'bg-gradient-to-br from-yellow-600 to-amber-700',
+  };
+  if (tile.type === 'property') {
+    return <div className="absolute inset-0 bg-stone-700" />;
+  }
+  return <div className={`absolute inset-0 ${bgMap[tile.type] || ''}`} />;
+}
+
 function TileView({
-  tile, playersHere, owner, houseLevel, isCurrent, stateOwned,
+  tile, playersHere, owner, houseLevel, isCurrent, stateOwned, onClick,
 }: {
   tile: Tile;
   playersHere: Player[];
@@ -62,72 +82,38 @@ function TileView({
   houseLevel: HouseLevel;
   isCurrent: boolean;
   stateOwned: boolean;
+  onClick?: () => void;
 }) {
   const isSpecial = tile.type !== 'property' && tile.type !== 'start';
 
   return (
     <div
+      onClick={onClick}
       className={`relative rounded-lg overflow-hidden transition-all duration-300 ${
         isCurrent ? 'ring-2 ring-amber-400 shadow-lg shadow-amber-500/30 z-10 scale-105' : ''
-      }`}
+      } ${onClick ? 'cursor-pointer hover:ring-1 hover:ring-amber-400/40' : ''}`}
       style={{ minHeight: '64px' }}
     >
-      {/* Base color */}
-      {tile.type === 'start' && (
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-500 to-orange-700" />
-      )}
-      {tile.type === 'property' && !stateOwned && (
-        <div className="absolute inset-0 bg-stone-700" />
-      )}
-      {tile.type === 'property' && stateOwned && (
+      {stateOwned ? (
         <div className="absolute inset-0 bg-stone-800" />
-      )}
-      {tile.type === 'musibah' && (
-        <div className="absolute inset-0 bg-gradient-to-br from-red-800 to-red-950" />
-      )}
-      {tile.type === 'takdir' && (
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-800 to-blue-950" />
-      )}
-      {tile.type === 'targetir' && (
-        <div className="absolute inset-0 bg-gradient-to-br from-rose-800 to-stone-900" />
-      )}
-      {tile.type === 'lapas' && (
-        <div className="absolute inset-0 bg-gradient-to-br from-orange-700 to-amber-900" />
-      )}
-      {tile.type === 'pajak' && (
-        <div className="absolute inset-0 bg-gradient-to-br from-teal-700 to-cyan-900" />
-      )}
-      {tile.type === 'pengadilan' && (
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-700 to-indigo-950" />
-      )}
-      {tile.type === 'pungli' && (
-        <div className="absolute inset-0 bg-gradient-to-br from-yellow-600 to-amber-800" />
-      )}
-      {tile.type === 'tol' && (
-        <div className="absolute inset-0 bg-gradient-to-br from-cyan-600 to-cyan-900" />
-      )}
-      {tile.type === 'tilang' && (
-        <div className="absolute inset-0 bg-gradient-to-br from-yellow-600 to-amber-700" />
+      ) : (
+        <TileBg tile={tile} />
       )}
 
-      {/* Island color strip */}
       {tile.island && (
         <div className={`absolute top-0 left-0 right-0 h-1.5 ${ISLAND_COLORS[tile.island] || ''}`} />
       )}
 
-      {/* State owned badge */}
       {stateOwned && (
         <div className="absolute top-0 right-0 bg-red-600 text-white text-[6px] font-bold px-1 py-0.5 rounded-bl leading-none">
           NEGARA
         </div>
       )}
 
-      {/* Owner color marker */}
       {owner && !stateOwned && (
         <div className="absolute top-0 right-0 w-4 h-4 rounded-bl-lg" style={{ backgroundColor: owner.color }} />
       )}
 
-      {/* Special tile icon */}
       {isSpecial && TILE_ICON[tile.type] && (
         <div className="absolute top-2 right-1.5 text-white/30 text-xs font-bold">
           {TILE_ICON[tile.type]}
@@ -186,9 +172,7 @@ function CenterPanel({
 
   return (
     <div className="text-center px-2 py-1">
-      <div
-        className="inline-flex items-center gap-2 mb-1"
-      >
+      <div className="inline-flex items-center gap-2 mb-1">
         <div
           className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0"
           style={{ backgroundColor: cp.color + '30', border: `2px solid ${cp.color}` }}
@@ -224,7 +208,7 @@ function CenterPanel({
 }
 
 export default function GameBoard({
-  players, currentPlayerId, stateOwnedTiles = [], boardTiles, turn = 1, diceValues, diceRolled, currentPlayerObj,
+  players, currentPlayerId, stateOwnedTiles = [], boardTiles, turn = 1, diceValues, diceRolled, currentPlayerObj, onTileClick,
 }: GameBoardProps) {
   const tiles = boardTiles || BOARD;
   const gridSize = 9;
@@ -304,6 +288,7 @@ export default function GameBoard({
                   houseLevel={houseLevel}
                   isCurrent={currentPlayer?.position === tile.id}
                   stateOwned={owned}
+                  onClick={onTileClick ? () => onTileClick(tile) : undefined}
                 />
               </div>
             );
@@ -313,5 +298,3 @@ export default function GameBoard({
     </div>
   );
 }
-
-export { BOARD_SIZE };

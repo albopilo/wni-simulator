@@ -44,8 +44,14 @@ export const RULES = {
   // State-owned land rent is 50% of base rent
   stateOwnedRentRate: 0.5,
 
-  // Doubels: rolling doubles grants an extra turn (not implemented in original)
-  doublesExtraTurn: false, // unverified — original code did not implement this
+  // Doubles: rolling doubles grants an extra turn.
+  // UNVERIFIED — the official WNI Simulator rulebook has not been checked.
+  // When enabled: rolling doubles gives the player another turn after resolving
+  // the current tile. Three consecutive doubles send the player to Lapas (jail).
+  // Jail exception: doubles rolled while in jail only releases the player — it
+  // does NOT grant an extra turn.
+  doublesExtraTurn: true,
+  doublesJailThreshold: 3, // consecutive doubles that trigger jail
 
   // Victory: last non-bankrupt player wins
   victoryCondition: 'lastStanding' as 'lastStanding' | 'netWorth',
@@ -122,6 +128,14 @@ export const RULES_REFERENCE: { category: string; items: { label: string; value:
       { label: 'Kartu Bebas Lapas', value: 'Bebas dari lapas tanpa bayar', verified: false },
       { label: 'Kartu Pelindung', value: 'Tangkal 1 musibah', verified: false },
       { label: 'Stopwatch', value: 'Aktif setelah semua pemain 2 putaran', verified: false },
+    ],
+  },
+  {
+    category: 'Dadu Kembar (Doubles)',
+    items: [
+      { label: 'Extra turn on doubles', value: 'Ya (dapat giliran lagi)', verified: false },
+      { label: 'Batas kembar berturut-turut', value: '3x = langsung Lapas', verified: false },
+      { label: 'Dobel di Lapas', value: 'Bebas, tanpa extra turn', verified: false },
     ],
   },
   {

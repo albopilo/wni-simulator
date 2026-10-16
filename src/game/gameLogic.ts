@@ -49,6 +49,7 @@ export function createPlayers(count: number): Player[] {
     turnsPlayed: 0,
     protectionCards: 0,
     pendingGajian: false,
+    consecutiveDoubles: 0,
   }));
 }
 

@@ -65,7 +65,7 @@ export default function RulesModal({ onClose }: RulesModalProps) {
               <li>• Beli tanah kosong yang kamu injak, atau skip. Tanah punya sewa untuk pemain lain yang mendarat.</li>
               <li>• Bangun Rumah Subsidi (level 1-2) lalu upgrade ke Rumah OKB (level 3) saat gajian.</li>
               <li>• Musibah: kocok dadu untuk tingkat keparahan (5-6 ringan, 3-4 sedang, 1-2 brutal).</li>
-              <li>• Takdir: kartu keberuntungan. Dobel dadu = wajib ambil Takdir.</li>
+              <li>• Dobel dadu = wajib ambil Takdir + dapat giliran lagi. 3x dobel berturut-turut = langsung Lapas.</li>
               <li>• Targetir: kartu pemerintah yang merugikan pemain.</li>
               <li>• Lapas: 3 putaran max. Bayar jaminan, gunakan kartu bebas, atau lempar dobel.</li>
               <li>• Pengadilan: kocok dadu nasib — menang, kalah, atau brutal.</li>
