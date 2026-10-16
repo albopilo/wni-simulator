@@ -1,4 +1,3 @@
-import { useRef, useEffect } from 'react';
 import { Dices } from 'lucide-react';
 
 interface DiceProps {
@@ -9,9 +8,9 @@ interface DiceProps {
   disabled: boolean;
 }
 
-const DICE_FACES = [
-  [0],
-  [0],
+const DICE_FACES: number[][] = [
+  [],
+  [],
   [0, 2],
   [0, 2, 4],
   [0, 1, 2, 3, 4],
@@ -19,16 +18,17 @@ const DICE_FACES = [
   [0, 1, 2, 3, 4, 5],
 ];
 
+const DOT_POSITIONS = [
+  'top-1 left-1', 'top-1 right-1', 'top-1/2 left-1', 'top-1/2 right-1',
+  'bottom-1 left-1', 'bottom-1 right-1', 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
+];
+
 function DiceFace({ value, rolling }: { value: number; rolling: boolean }) {
   const dots = DICE_FACES[value] || [];
-  const positions = [
-    'top-1 left-1', 'top-1 right-1', 'top-1/2 left-1', 'top-1/2 right-1',
-    'bottom-1 left-1', 'bottom-1 right-1', 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
-  ];
 
   return (
     <div
-      className={`w-12 h-12 bg-white rounded-xl shadow-lg relative ${
+      className={`w-12 h-12 bg-gradient-to-br from-stone-50 to-stone-200 rounded-xl shadow-lg relative ${
         rolling ? 'animate-spin' : ''
       }`}
       style={{ transitionDuration: '150ms' }}
@@ -36,7 +36,7 @@ function DiceFace({ value, rolling }: { value: number; rolling: boolean }) {
       {dots.map((pos, i) => (
         <div
           key={i}
-          className={`w-2 h-2 bg-slate-800 rounded-full absolute ${positions[pos]}`}
+          className={`w-2 h-2 bg-stone-800 rounded-full absolute ${DOT_POSITIONS[pos]}`}
         />
       ))}
     </div>
@@ -67,7 +67,7 @@ export default function Dice({ values, rolling, rolled, onRoll, disabled }: Dice
         disabled={disabled || rolling}
         className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all duration-200 ${
           disabled || rolling
-            ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+            ? 'bg-stone-700 text-stone-500 cursor-not-allowed'
             : 'bg-gradient-to-br from-amber-500 to-orange-600 text-white hover:scale-105 active:scale-95 shadow-lg shadow-orange-500/20'
         }`}
       >

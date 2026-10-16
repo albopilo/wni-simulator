@@ -1,7 +1,8 @@
 import type { Player, Tile, GameCard, HouseLevel, CardType, MusibahTier } from './types';
 import {
-  BOARD, BOARD_SIZE, TOL_TILES, MUSIBAH_CARDS, TAKDIR_CARDS, TARGETIR_CARDS, BANDUNG_TILE_ID, LAPAS_TILE_ID,
+  BOARD, TOL_TILES, MUSIBAH_CARDS, TAKDIR_CARDS, TARGETIR_CARDS, BANDUNG_TILE_ID,
 } from './boardData';
+import { RULES } from './gameRules';
 
 export const PLAYER_PRESETS = [
   { name: 'Pemain 1', color: '#ef4444', emoji: '🤓' },
@@ -11,17 +12,17 @@ export const PLAYER_PRESETS = [
   { name: 'Pemain 5', color: '#ec4899', emoji: '🤯' },
 ];
 
-export const STARTING_CASH = 5_000_000;
-export const SALARY = 1_000_000;
-export const JAIL_BAIL = 1_500_000;
-export const TAX_PER_PROPERTY = 500_000;
-export const PUNGLI_FEE = 1_000_000;
-export const TILANG_FINE = 500_000;
-export const LAPAS_FINE = 1_500_000;
-export const TOL_FEE = 500_000;
-export const PENGADILAN_COMPENSATION = 1_000_000;
-export const MAX_JAIL_TURNS = 3;
-export const STOPWATCH_ROUND_THRESHOLD = 2;
+export const STARTING_CASH = RULES.startingCash;
+export const SALARY = RULES.salary;
+export const JAIL_BAIL = RULES.jailBail;
+export const TAX_PER_PROPERTY = RULES.taxPerProperty;
+export const PUNGLI_FEE = RULES.pungliFee;
+export const TILANG_FINE = RULES.tilangFine;
+export const LAPAS_FINE = RULES.lapasFine;
+export const TOL_FEE = RULES.tolFee;
+export const PENGADILAN_COMPENSATION = RULES.pengadilanCompensation;
+export const MAX_JAIL_TURNS = RULES.maxJailTurns;
+export const STOPWATCH_ROUND_THRESHOLD = RULES.stopwatchRoundThreshold;
 
 export const STATE_OWNED = new Set<number>();
 export const BOARD_OVERRIDES = new Map<number, Tile>();
@@ -104,12 +105,12 @@ export function calculateRent(tile: Tile, owner: Player): number {
 }
 
 export function calculateStateRent(tile: Tile): number {
-  return Math.floor((tile.rent || 0) * 0.5);
+  return Math.floor((tile.rent || 0) * RULES.stateOwnedRentRate);
 }
 
 export function getSeverityFromDie(die: number): MusibahTier {
-  if (die >= 5) return 'ringan';
-  if (die >= 3) return 'sedang';
+  if (die >= RULES.musibah.ringanMin) return 'ringan';
+  if (die >= RULES.musibah.sedangMin) return 'sedang';
   return 'brutal';
 }
 
@@ -215,4 +216,228 @@ export function getBuildCost(player: Player, tileId: number): number {
 export function getSellValue(tileId: number): number {
   const tile = getTile(tileId);
   return Math.floor((tile.price || 0) * 0.5);
+}
+
+// --- Typed engine functions ---
+
+export interface TransferResult {
+  success: boolean;
+  payer: Player;
+  receiver: Player | null;
+  amount: number;
+}
+
+export function transferMoney(
+  players: Player[],
+  payerId: number,
+  receiverId: number | null,
+  amount: number,
+): Player[] {
+  if (amount <= 0) return players;
+  return players.map(p => {
+    if (p.id === payerId) {
+      return { ...p, cash: Math.max(0, p.cash - amount), isBankrupt: p.cash < amount };
+    }
+    if (p.id === receiverId) {
+      return { ...p, cash: p.cash + amount };
+    }
+    return p;
+  });
+}
+
+export function payToNegara(
+  players: Player[],
+  payerId: number,
+  amount: number,
+): { players: Player[]; negaraGain: number } {
+  if (amount <= 0) return { players, negaraGain: 0 };
+  const payer = players.find(p => p.id === payerId);
+  if (!payer) return { players, negaraGain: 0 };
+  const canPay = payer.cash >= amount;
+  const newPlayers = players.map(p => {
+    if (p.id === payerId) {
+      return { ...p, cash: Math.max(0, p.cash - amount), isBankrupt: !canPay };
+    }
+    return p;
+  });
+  return { players: newPlayers, negaraGain: canPay ? amount : payer.cash };
+}
+
+export function collectFromNegara(
+  players: Player[],
+  receiverId: number,
+  amount: number,
+): { players: Player[]; negaraLoss: number } {
+  if (amount <= 0) return { players, negaraLoss: 0 };
+  const newPlayers = players.map(p => {
+    if (p.id === receiverId) return { ...p, cash: p.cash + amount };
+    return p;
+  });
+  return { players: newPlayers, negaraLoss: amount };
+}
+
+export function collectFromAllPlayers(
+  players: Player[],
+  collectorId: number,
+  amountPerPlayer: number,
+): { players: Player[]; totalCollected: number } {
+  let totalCollected = 0;
+  const newPlayers = players.map(p => {
+    if (p.id === collectorId) return p;
+    if (p.isBankrupt) return p;
+    const actualAmount = Math.min(p.cash, amountPerPlayer);
+    totalCollected += actualAmount;
+    const newCash = p.cash - actualAmount;
+    const isBankrupt = newCash === 0 && p.properties.length === 0;
+    return { ...p, cash: Math.max(0, newCash), isBankrupt };
+  });
+  const collector = newPlayers.find(p => p.id === collectorId);
+  if (collector) {
+    const idx = newPlayers.findIndex(p => p.id === collectorId);
+    newPlayers[idx] = { ...collector, cash: collector.cash + totalCollected };
+  }
+  return { players: newPlayers, totalCollected };
+}
+
+export function payAllPlayers(
+  players: Player[],
+  payerId: number,
+  amountPerPlayer: number,
+  toNegara: boolean,
+): { players: Player[]; negaraGain: number; success: boolean } {
+  const payer = players.find(p => p.id === payerId);
+  if (!payer) return { players, negaraGain: 0, success: false };
+  const others = players.filter(p => p.id !== payerId && !p.isBankrupt);
+  const total = others.length * amountPerPlayer;
+  if (payer.cash < total) {
+    return {
+      players: players.map(p => p.id === payerId ? { ...p, isBankrupt: true, cash: 0 } : p),
+      negaraGain: 0,
+      success: false,
+    };
+  }
+  let negaraGain = 0;
+  const newPlayers = players.map(p => {
+    if (p.id === payerId) return { ...p, cash: p.cash - total };
+    if (p.isBankrupt) return p;
+    if (toNegara) {
+      negaraGain += amountPerPlayer;
+      return p;
+    }
+    return { ...p, cash: p.cash + amountPerPlayer };
+  });
+  return { players: newPlayers, negaraGain, success: true };
+}
+
+export function confiscateProperty(
+  player: Player,
+  tileId: number,
+): { player: Player; refund: number } {
+  const tile = getTile(tileId);
+  const refund = Math.floor((tile.price || 0) * RULES.confiscation.refundRate);
+  const newProps = player.properties.filter(id => id !== tileId);
+  const newHouses = { ...player.houses };
+  delete newHouses[tileId];
+  return {
+    player: { ...player, properties: newProps, houses: newHouses, cash: player.cash + refund },
+    refund,
+  };
+}
+
+export function transferPropertiesOnBankruptcy(
+  bankrupt: Player,
+  creditor: Player,
+): { creditor: Player } {
+  const newProps = [...creditor.properties, ...bankrupt.properties];
+  const newHouses = { ...creditor.houses };
+  for (const propId of bankrupt.properties) {
+    const h = bankrupt.houses[propId] || 0;
+    if (h > 0) {
+      const existing = newHouses[propId] || 0;
+      newHouses[propId] = (existing === 0 ? h : Math.max(existing, h)) as HouseLevel;
+    }
+  }
+  return {
+    creditor: {
+      ...creditor,
+      properties: newProps,
+      houses: newHouses,
+      cash: creditor.cash + bankrupt.cash,
+    },
+  };
+}
+
+export function buyProperty(player: Player, tile: Tile): Player | null {
+  const price = tile.price || 0;
+  if (player.cash < price) return null;
+  return {
+    ...player,
+    cash: player.cash - price,
+    properties: [...player.properties, tile.id],
+  };
+}
+
+export function buildHouse(player: Player, tileId: number): { player: Player; cost: number } | null {
+  if (!canBuildHouse(player, tileId)) return null;
+  const level = player.houses[tileId] || 0;
+  const cost = getBuildCost(player, tileId);
+  const newLevel = (level === 2 ? 3 : level + 1) as HouseLevel;
+  return {
+    player: {
+      ...player,
+      cash: player.cash - cost,
+      houses: { ...player.houses, [tileId]: newLevel },
+    },
+    cost,
+  };
+}
+
+export function freeUpgradeHouse(player: Player, tileId: number): Player | null {
+  if (!player.properties.includes(tileId)) return null;
+  const level = player.houses[tileId] || 0;
+  if (level === 3) return null;
+  const newLevel = (level === 0 ? 1 : 3) as HouseLevel;
+  return {
+    ...player,
+    houses: { ...player.houses, [tileId]: newLevel },
+  };
+}
+
+export function advanceToTile(
+  player: Player,
+  destTileId: number,
+  boardSize: number,
+  salary: number,
+): { player: Player; passedStart: boolean } {
+  const passedStart = destTileId < player.position;
+  const newCash = passedStart ? player.cash + salary : player.cash;
+  return {
+    player: { ...player, position: destTileId, cash: newCash },
+    passedStart,
+  };
+}
+
+export function findNextPlayer(
+  players: Player[],
+  currentIndex: number,
+): { nextIndex: number; newTurn: boolean } {
+  let nextIdx = (currentIndex + 1) % players.length;
+  while (players[nextIdx]?.isBankrupt && nextIdx !== currentIndex) {
+    nextIdx = (nextIdx + 1) % players.length;
+  }
+  return {
+    nextIndex: nextIdx,
+    newTurn: nextIdx <= currentIndex,
+  };
+}
+
+export function countActivePlayers(players: Player[]): number {
+  return players.filter(p => !p.isBankrupt).length;
+}
+
+export function getWinner(players: Player[]): Player | null {
+  const active = players.filter(p => !p.isBankrupt);
+  if (active.length === 0) return null;
+  if (active.length === 1) return active[0];
+  return active.sort((a, b) => calculateNetWorth(b) - calculateNetWorth(a))[0];
 }

@@ -1,34 +1,37 @@
 import type { Player, Tile, HouseLevel } from '@/game/types';
-import { BOARD, BOARD_SIZE } from '@/game/boardData';
+import { BOARD, BOARD_SIZE, formatMoneyFull } from '@/game/boardData';
 import { propertyOwner, isStateOwned } from '@/game/gameLogic';
+import { Dices } from 'lucide-react';
 
 interface GameBoardProps {
   players: Player[];
   currentPlayerId: number;
   stateOwnedTiles?: number[];
   boardTiles?: Tile[];
+  turn?: number;
+  diceValues?: [number, number];
+  diceRolled?: boolean;
+  currentPlayerObj?: Player;
 }
 
-const TILE_COLORS: Record<string, string> = {
-  start: 'bg-gradient-to-br from-amber-500 to-orange-600',
-  property: 'bg-slate-700',
-  musibah: 'bg-gradient-to-br from-red-600 to-red-800',
-  takdir: 'bg-gradient-to-br from-blue-600 to-blue-800',
-  targetir: 'bg-gradient-to-br from-fuchsia-700 to-purple-900',
-  lapas: 'bg-gradient-to-br from-orange-600 to-amber-800',
-  pajak: 'bg-gradient-to-br from-teal-600 to-cyan-800',
-  pengadilan: 'bg-gradient-to-br from-indigo-600 to-indigo-800',
-  pungli: 'bg-gradient-to-br from-yellow-600 to-amber-700',
-  tol: 'bg-gradient-to-br from-cyan-600 to-cyan-800',
-  tilang: 'bg-gradient-to-br from-yellow-500 to-amber-600',
+const ISLAND_COLORS: Record<string, string> = {
+  Sumatera: 'bg-emerald-600',
+  Jawa: 'bg-blue-700',
+  Kalimantan: 'bg-amber-600',
+  Sulawesi: 'bg-rose-600',
+  Papua: 'bg-teal-600',
 };
 
-const ISLAND_COLORS: Record<string, string> = {
-  Sumatera: 'bg-green-500',
-  Jawa: 'bg-blue-500',
-  Kalimantan: 'bg-amber-500',
-  Sulawesi: 'bg-rose-500',
-  Papua: 'bg-emerald-500',
+const TILE_ICON: Record<string, string> = {
+  musibah: '⚠',
+  takdir: '✦',
+  targetir: '◎',
+  lapas: '🔒',
+  pajak: '§',
+  pengadilan: '⚖',
+  pungli: '$',
+  tilang: '✕',
+  tol: '≡',
 };
 
 function HouseIndicator({ level }: { level: HouseLevel }) {
@@ -36,7 +39,7 @@ function HouseIndicator({ level }: { level: HouseLevel }) {
   if (level === 3) {
     return (
       <div className="absolute bottom-0.5 left-1 flex items-center gap-0.5">
-        <div className="w-2 h-2 bg-red-400 rounded-sm" />
+        <div className="w-2 h-2 bg-red-400 rounded-sm shadow-sm" />
         <span className="text-[7px] text-red-300 font-bold">OKB</span>
       </div>
     );
@@ -44,7 +47,7 @@ function HouseIndicator({ level }: { level: HouseLevel }) {
   return (
     <div className="absolute bottom-0.5 left-1 flex gap-0.5">
       {Array.from({ length: level }).map((_, i) => (
-        <div key={i} className="w-1.5 h-1.5 bg-green-400 rounded-sm" />
+        <div key={i} className="w-1.5 h-1.5 bg-emerald-400 rounded-sm shadow-sm" />
       ))}
     </div>
   );
@@ -60,37 +63,92 @@ function TileView({
   isCurrent: boolean;
   stateOwned: boolean;
 }) {
+  const isSpecial = tile.type !== 'property' && tile.type !== 'start';
+
   return (
     <div
-      className={`relative rounded-lg ${TILE_COLORS[tile.type] || 'bg-slate-700'} ${
-        isCurrent ? 'ring-2 ring-amber-400 shadow-lg shadow-amber-500/30 z-10' : ''
-      } transition-all duration-300 overflow-hidden`}
-      style={{ minHeight: '70px' }}
+      className={`relative rounded-lg overflow-hidden transition-all duration-300 ${
+        isCurrent ? 'ring-2 ring-amber-400 shadow-lg shadow-amber-500/30 z-10 scale-105' : ''
+      }`}
+      style={{ minHeight: '64px' }}
     >
+      {/* Base color */}
+      {tile.type === 'start' && (
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-500 to-orange-700" />
+      )}
+      {tile.type === 'property' && !stateOwned && (
+        <div className="absolute inset-0 bg-stone-700" />
+      )}
+      {tile.type === 'property' && stateOwned && (
+        <div className="absolute inset-0 bg-stone-800" />
+      )}
+      {tile.type === 'musibah' && (
+        <div className="absolute inset-0 bg-gradient-to-br from-red-800 to-red-950" />
+      )}
+      {tile.type === 'takdir' && (
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-800 to-blue-950" />
+      )}
+      {tile.type === 'targetir' && (
+        <div className="absolute inset-0 bg-gradient-to-br from-rose-800 to-stone-900" />
+      )}
+      {tile.type === 'lapas' && (
+        <div className="absolute inset-0 bg-gradient-to-br from-orange-700 to-amber-900" />
+      )}
+      {tile.type === 'pajak' && (
+        <div className="absolute inset-0 bg-gradient-to-br from-teal-700 to-cyan-900" />
+      )}
+      {tile.type === 'pengadilan' && (
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-700 to-indigo-950" />
+      )}
+      {tile.type === 'pungli' && (
+        <div className="absolute inset-0 bg-gradient-to-br from-yellow-600 to-amber-800" />
+      )}
+      {tile.type === 'tol' && (
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-600 to-cyan-900" />
+      )}
+      {tile.type === 'tilang' && (
+        <div className="absolute inset-0 bg-gradient-to-br from-yellow-600 to-amber-700" />
+      )}
+
+      {/* Island color strip */}
       {tile.island && (
         <div className={`absolute top-0 left-0 right-0 h-1.5 ${ISLAND_COLORS[tile.island] || ''}`} />
       )}
 
+      {/* State owned badge */}
       {stateOwned && (
-        <div className="absolute top-0 right-0 bg-red-600 text-white text-[6px] font-bold px-1 py-0.5 rounded-bl">
+        <div className="absolute top-0 right-0 bg-red-600 text-white text-[6px] font-bold px-1 py-0.5 rounded-bl leading-none">
           NEGARA
         </div>
       )}
 
+      {/* Owner color marker */}
       {owner && !stateOwned && (
         <div className="absolute top-0 right-0 w-4 h-4 rounded-bl-lg" style={{ backgroundColor: owner.color }} />
       )}
 
+      {/* Special tile icon */}
+      {isSpecial && TILE_ICON[tile.type] && (
+        <div className="absolute top-2 right-1.5 text-white/30 text-xs font-bold">
+          {TILE_ICON[tile.type]}
+        </div>
+      )}
+
       <HouseIndicator level={houseLevel} />
 
-      <div className="px-1 pt-2.5 pb-1">
-        <p className="text-[8px] sm:text-[9px] font-bold text-white text-center leading-tight line-clamp-2">
+      <div className="px-1 pt-2.5 pb-1 relative">
+        <p className={`text-[8px] sm:text-[9px] font-bold text-center leading-tight line-clamp-2 ${
+          tile.type === 'start' ? 'text-white' : tile.type === 'property' && !stateOwned ? 'text-stone-200' : 'text-white'
+        }`}>
           {tile.name}
         </p>
         {tile.price && !stateOwned && (
-          <p className="text-[7px] text-slate-300 text-center mt-0.5">
+          <p className="text-[7px] text-amber-300/80 text-center mt-0.5 font-medium">
             {(tile.price / 1_000_000).toFixed(1)}jt
           </p>
+        )}
+        {stateOwned && (
+          <p className="text-[7px] text-stone-500 text-center mt-0.5">—</p>
         )}
       </div>
 
@@ -99,7 +157,7 @@ function TileView({
           {playersHere.map(p => (
             <div
               key={p.id}
-              className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] border border-white/30"
+              className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] border border-white/30 shadow-sm"
               style={{ backgroundColor: p.color }}
             >
               {p.emoji}
@@ -111,7 +169,63 @@ function TileView({
   );
 }
 
-export default function GameBoard({ players, currentPlayerId, stateOwnedTiles = [], boardTiles }: GameBoardProps) {
+function CenterPanel({
+  players, currentPlayerId, turn, diceValues, diceRolled, currentPlayerObj,
+}: {
+  players: Player[];
+  currentPlayerId: number;
+  turn: number;
+  diceValues?: [number, number];
+  diceRolled?: boolean;
+  currentPlayerObj?: Player;
+}) {
+  const cp = currentPlayerObj || players[currentPlayerId];
+  if (!cp) return null;
+
+  const activeCount = players.filter(p => !p.isBankrupt).length;
+
+  return (
+    <div className="text-center px-2 py-1">
+      <div
+        className="inline-flex items-center gap-2 mb-1"
+      >
+        <div
+          className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0"
+          style={{ backgroundColor: cp.color + '30', border: `2px solid ${cp.color}` }}
+        >
+          {cp.emoji}
+        </div>
+      </div>
+      <div className="text-stone-100 font-bold text-xs sm:text-sm truncate max-w-[120px] mx-auto">{cp.name}</div>
+      <div className="text-amber-400 font-bold text-xs sm:text-sm">{formatMoneyFull(cp.cash)}</div>
+
+      {diceValues && diceRolled && (
+        <div className="flex items-center justify-center gap-1 mt-1.5">
+          <Dices className="w-3 h-3 text-stone-500" />
+          <span className="text-stone-300 text-xs font-bold">
+            {diceValues[0]} + {diceValues[1]} = {diceValues[0] + diceValues[1]}
+          </span>
+          {diceValues[0] === diceValues[1] && (
+            <span className="text-orange-400 text-[10px] font-bold">DBL</span>
+          )}
+        </div>
+      )}
+
+      <div className="text-stone-600 text-[8px] sm:text-[9px] mt-1">
+        Putaran {turn} • {activeCount} pemain aktif
+      </div>
+      {cp.inJail && (
+        <div className="inline-flex items-center gap-1 text-orange-400 text-[8px] font-bold mt-1 bg-orange-500/10 px-1.5 py-0.5 rounded">
+          🔒 Lapas {cp.jailTurns}/3
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function GameBoard({
+  players, currentPlayerId, stateOwnedTiles = [], boardTiles, turn = 1, diceValues, diceRolled, currentPlayerObj,
+}: GameBoardProps) {
   const tiles = boardTiles || BOARD;
   const gridSize = 9;
   const grid: (Tile | null)[][] = Array.from({ length: gridSize }, () =>
@@ -126,7 +240,7 @@ export default function GameBoard({ players, currentPlayerId, stateOwnedTiles = 
   const currentPlayer = players[currentPlayerId];
 
   return (
-    <div className="bg-slate-900/60 rounded-2xl p-2 sm:p-4 border border-slate-700">
+    <div className="rounded-2xl p-2 sm:p-3 border border-stone-700/60 bg-gradient-to-br from-stone-900/80 to-stone-950/80">
       <div
         className="grid gap-1"
         style={{
@@ -137,22 +251,42 @@ export default function GameBoard({ players, currentPlayerId, stateOwnedTiles = 
         {grid.map((row, rowIdx) =>
           row.map((tile, colIdx) => {
             if (!tile) {
+              const isCenter = rowIdx >= 2 && rowIdx <= 6 && colIdx >= 2 && colIdx <= 6;
+              if (isCenter) {
+                return (
+                  <div
+                    key={`${rowIdx}-${colIdx}`}
+                    className="flex items-center justify-center"
+                    style={{
+                      gridRow: `${2} / ${7}`,
+                      gridColumn: `${2} / ${7}`,
+                    }}
+                  >
+                    <div className="w-full h-full bg-gradient-to-br from-stone-800/60 to-stone-900/60 rounded-xl border border-stone-700/40 flex flex-col items-center justify-center p-2">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-red-600 to-amber-600 flex items-center justify-center shadow-lg">
+                          <span className="text-white font-black text-[10px]">WNI</span>
+                        </div>
+                      </div>
+                      <div className="text-amber-500 font-black text-sm sm:text-base leading-tight">WNI</div>
+                      <div className="text-orange-400 font-black text-xs sm:text-sm">SIMULATOR</div>
+                      <CenterPanel
+                        players={players}
+                        currentPlayerId={currentPlayerId}
+                        turn={turn}
+                        diceValues={diceValues}
+                        diceRolled={diceRolled}
+                        currentPlayerObj={currentPlayerObj}
+                      />
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div
                   key={`${rowIdx}-${colIdx}`}
-                  className="flex items-center justify-center"
                   style={{ gridRow: rowIdx + 1, gridColumn: colIdx + 1 }}
-                >
-                  {rowIdx === 4 && colIdx === 4 && (
-                    <div className="text-center">
-                      <div className="text-amber-400 font-black text-lg sm:text-2xl leading-tight">WNI</div>
-                      <div className="text-orange-400 font-black text-sm sm:text-lg">SIMULATOR</div>
-                      <div className="text-slate-500 text-[8px] sm:text-xs mt-1">
-                        Putaran {Math.floor(currentPlayer?.turnsPlayed || 0) + 1}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                />
               );
             }
 
