@@ -37,33 +37,33 @@ export default function PropertySelectModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s_ease]">
-      <div className="max-w-md w-full max-h-[80vh] overflow-hidden rounded-3xl shadow-2xl border border-stone-700 bg-gradient-to-br from-stone-800 to-stone-900 flex flex-col animate-[slideUp_0.3s_ease]">
-        <div className="p-5 border-b border-stone-700">
+      <div className="max-w-md w-full max-h-[80vh] overflow-hidden rounded-3xl shadow-2xl border border-paper-300 bg-gradient-to-br from-paper-50 to-paper-100 flex flex-col animate-[slideUp_0.3s_ease]">
+        <div className="p-5 border-b border-paper-300">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-emerald-400" />
+            <div className="w-10 h-10 rounded-xl bg-forest-500/20 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-forest-600" />
             </div>
             <div>
-              <h2 className="text-stone-100 font-bold text-lg">{title}</h2>
-              <p className="text-stone-400 text-xs">{description}</p>
+              <h2 className="text-navy-800 font-bold text-lg">{title}</h2>
+              <p className="text-navy-500 text-xs">{description}</p>
             </div>
           </div>
         </div>
 
         <div className="overflow-y-auto p-4 space-y-2">
           {mode === 'build' && allProps.length > 0 && (
-            <div className="bg-stone-700/20 rounded-xl p-2 mb-2">
-              <p className="text-stone-500 text-[10px] text-center">
+            <div className="bg-paper-200/50 rounded-xl p-2 mb-2">
+              <p className="text-navy-500 text-[10px] text-center">
                 Kamu bisa bangun di beberapa tanah sekaligus. Klik tanah untuk bangun, lalu klik "Selesai" untuk lanjut.
               </p>
             </div>
           )}
           {availableProperties.length === 0 && allProps.length === 0 ? (
-            <p className="text-stone-500 text-sm text-center py-8">
+            <p className="text-navy-500 text-sm text-center py-8">
               {mode === 'free' ? 'Tidak ada tanah kosong.' : mode === 'upgrade' ? 'Tidak ada tanah yang bisa di-upgrade.' : 'Kamu belum punya tanah.'}
             </p>
           ) : mode === 'build' && availableProperties.length === 0 ? (
-            <p className="text-stone-500 text-sm text-center py-8">
+            <p className="text-navy-500 text-sm text-center py-8">
               Semua tanah sudah maksimal atau uang kurang.
             </p>
           ) : (
@@ -75,31 +75,31 @@ export default function PropertySelectModal({
                 <button
                   key={tile.id}
                   onClick={() => onSelect(tile.id)}
-                  className="w-full flex items-center gap-3 bg-stone-700/40 hover:bg-stone-700/70 rounded-xl p-3 transition-colors text-left"
+                  className="w-full flex items-center gap-3 bg-paper-200/60 hover:bg-paper-200 rounded-xl p-3 transition-colors text-left border border-paper-300/50"
                 >
                   <div className="flex-1">
-                    <p className="text-stone-100 font-semibold text-sm">{tile.name}</p>
-                    <p className="text-stone-500 text-xs">
+                    <p className="text-navy-800 font-semibold text-sm">{tile.name}</p>
+                    <p className="text-navy-500 text-xs">
                       {tile.island}
                       {level > 0 && ` • ${houseLevelName(level)}`}
                     </p>
                   </div>
                   {mode === 'free' ? (
-                    <span className="text-emerald-400 text-sm font-bold">Gratis</span>
+                    <span className="text-forest-600 text-sm font-bold">Gratis</span>
                   ) : mode === 'upgrade' ? (
-                    <span className="text-emerald-400 text-sm font-bold">
+                    <span className="text-forest-600 text-sm font-bold">
                       {level === 0 ? '+ Rumah Subsidi' : 'Gratis OKB!'}
                     </span>
                   ) : isUpgradeToOKB ? (
                     <div className="text-right">
-                      <p className="text-red-400 text-sm font-bold">{formatMoneyFull(cost)}</p>
-                      <p className="text-red-300 text-[10px]">→ OKB</p>
+                      <p className="text-rust-500 text-sm font-bold">{formatMoneyFull(cost)}</p>
+                      <p className="text-rust-400 text-[10px]">→ OKB</p>
                     </div>
                   ) : (
                     <div className="text-right">
-                      <p className="text-amber-400 text-sm font-bold">{formatMoneyFull(cost)}</p>
-                      {level === 0 && <p className="text-emerald-300 text-[10px]">→ 1 RS</p>}
-                      {level === 1 && <p className="text-emerald-300 text-[10px]">→ 2 RS</p>}
+                      <p className="text-gold-600 text-sm font-bold">{formatMoneyFull(cost)}</p>
+                      {level === 0 && <p className="text-forest-500 text-[10px]">→ 1 RS</p>}
+                      {level === 1 && <p className="text-forest-500 text-[10px]">→ 2 RS</p>}
                     </div>
                   )}
                 </button>
@@ -108,11 +108,11 @@ export default function PropertySelectModal({
           )}
         </div>
 
-        <div className="p-4 border-t border-stone-700">
+        <div className="p-4 border-t border-paper-300">
           {mode === 'build' && onDone ? (
             <button
               onClick={onDone}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-all"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-br from-forest-500 to-forest-700 text-white font-bold text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-all"
             >
               <CheckCircle2 className="w-4 h-4" />
               Selesai Bangun
@@ -120,7 +120,7 @@ export default function PropertySelectModal({
           ) : (
             <button
               onClick={() => onSelect(-1)}
-              className="w-full py-2.5 rounded-xl bg-stone-700 text-stone-300 font-bold text-sm hover:bg-stone-600 transition-colors"
+              className="w-full py-2.5 rounded-xl bg-paper-300 text-navy-600 font-bold text-sm hover:bg-paper-400 transition-colors"
             >
               Batal
             </button>

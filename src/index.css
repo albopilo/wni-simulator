@@ -13,12 +13,12 @@
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background: #1c1917;
+  background: #f9f5ee;
 }
 
 /* Custom scrollbar */
@@ -31,12 +31,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #44403c;
+  background: #d0c0a0;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #57534e;
+  background: #b8a580;
 }
 
 /* Reduced motion */
@@ -52,6 +52,6 @@ body {
 
 /* Focus visibility for accessibility */
 *:focus-visible {
-  outline: 2px solid #f59e0b;
+  outline: 2px solid #c89c12;
   outline-offset: 2px;
 }

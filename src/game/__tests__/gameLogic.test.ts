@@ -122,7 +122,7 @@ describe('createPlayers', () => {
     const players = createPlayers(3);
     for (const p of players) {
       expect(p.cash).toBe(STARTING_CASH);
-      expect(p.cash).toBe(5_000_000);
+      expect(p.cash).toBe(10_000_000);
     }
   });
 
@@ -1098,8 +1098,8 @@ describe('Jail constants', () => {
 // ---------------------------------------------------------------------------
 
 describe('Rules configurability', () => {
-  it('startingCash is 5,000,000', () => {
-    expect(RULES.startingCash).toBe(5_000_000);
+  it('startingCash is 10,000,000', () => {
+    expect(RULES.startingCash).toBe(10_000_000);
   });
 
   it('salary is 1,000,000', () => {
@@ -1130,8 +1130,8 @@ describe('Rules configurability', () => {
     expect(RULES.confiscation.refundRate).toBe(0.5);
   });
 
-  it('doublesExtraTurn is true (unverified but now implemented)', () => {
-    expect(RULES.doublesExtraTurn).toBe(true);
+  it('doublesExtraTurn is false (verified: no extra turn on doubles)', () => {
+    expect(RULES.doublesExtraTurn).toBe(false);
   });
 
   it('doublesJailThreshold is 3', () => {

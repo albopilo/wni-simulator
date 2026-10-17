@@ -5,19 +5,33 @@
  */
 
 export const RULES = {
-  startingCash: 5_000_000,
+  // [Terverifikasi] Starting cash: Rp10,000,000 per player (gameplay demo)
+  startingCash: 10_000_000,
+  // [Terverifikasi] Salary: Rp1,000,000 when passing/landing on Start (gameplay demo)
   salary: 1_000_000,
+  // [Implementasi] Jail bail — unverified, matches lapasFine
   jailBail: 1_500_000,
+  // [Terverifikasi] Annual tax: Rp500,000 per land certificate owned (gameplay demo)
   taxPerProperty: 500_000,
+  // [Terverifikasi] Pungli fee: Rp1,000,000 (gameplay demo)
   pungliFee: 1_000_000,
+  // [Implementasi] Tilang fine — unverified
   tilangFine: 500_000,
+  // [Terverifikasi] Pengadilan lose outcome: go to jail + pay Rp1,500,000 (gameplay demo)
   lapasFine: 1_500_000,
+  // [Terverifikasi] Toll fee: Rp500,000 (gameplay demo)
   tolFee: 500_000,
+  // [Terverifikasi] Pengadilan win outcome: receive Rp1,000,000 (gameplay demo)
   pengadilanCompensation: 1_000_000,
+  // [Implementasi] Max jail turns — unverified
   maxJailTurns: 3,
+  // [Terverifikasi] Stopwatch cards active after every player has passed 2 rounds (gameplay demo)
   stopwatchRoundThreshold: 2,
 
-  // Pengadilan die thresholds
+  // [Terverifikasi] Pengadilan die outcomes (gameplay demo):
+  // Roll 1–2: go to jail and lose 50% of current cash to the state
+  // Roll 3–4: go to jail and pay Rp1,500,000
+  // Roll 5–6: receive Rp1,000,000
   pengadilan: {
     winThreshold: 5,    // die >= 5 → win compensation
     loseThreshold: 3,   // die >= 3 → jail + fine
@@ -44,14 +58,12 @@ export const RULES = {
   // State-owned land rent is 50% of base rent
   stateOwnedRentRate: 0.5,
 
-  // Doubles: rolling doubles grants an extra turn.
-  // UNVERIFIED — the official WNI Simulator rulebook has not been checked.
-  // When enabled: rolling doubles gives the player another turn after resolving
-  // the current tile. Three consecutive doubles send the player to Lapas (jail).
-  // Jail exception: doubles rolled while in jail only releases the player — it
-  // does NOT grant an extra turn.
-  doublesExtraTurn: true,
-  doublesJailThreshold: 3, // consecutive doubles that trigger jail
+  // [Terverifikasi] Doubles do NOT grant an extra movement turn.
+  // Resolve the landing effect first, then resolve the applicable Takdir effect.
+  // (gameplay demo: "Dobel dadu tidak otomatis dapat giliran lagi")
+  doublesExtraTurn: false,
+  // [Implementasi] Three consecutive doubles send to Lapas — unverified
+  doublesJailThreshold: 3,
 
   // Victory: last non-bankrupt player wins
   victoryCondition: 'lastStanding' as 'lastStanding' | 'netWorth',
@@ -67,8 +79,8 @@ export const RULES_REFERENCE: { category: string; items: { label: string; value:
   {
     category: 'Uang & Gajian',
     items: [
-      { label: 'Uang Awal', value: 'Rp 5.000.000', verified: false },
-      { label: 'Gajian di Start', value: 'Rp 1.000.000', verified: false },
+      { label: 'Uang Awal', value: 'Rp 10.000.000', verified: true },
+      { label: 'Gajian di Start', value: 'Rp 1.000.000', verified: true },
       { label: 'Gajian Dobel (kartu)', value: 'Rp 2.500.000', verified: false },
     ],
   },
@@ -84,24 +96,24 @@ export const RULES_REFERENCE: { category: string; items: { label: string; value:
   {
     category: 'Pajak & Denda',
     items: [
-      { label: 'Pajak Tahunan (per properti)', value: 'Rp 500.000', verified: false },
+      { label: 'Pajak Tahunan (per properti)', value: 'Rp 500.000', verified: true },
       { label: 'Tilang', value: 'Rp 500.000', verified: false },
-      { label: 'Pungli', value: 'Rp 1.000.000', verified: false },
+      { label: 'Pungli', value: 'Rp 1.000.000', verified: true },
       { label: 'Bebas Pungli (punya Bandung)', value: 'Ya', verified: false },
     ],
   },
   {
     category: 'Pengadilan',
     items: [
-      { label: 'Menang (dadu 5-6)', value: 'Kompensasi Rp 1.000.000', verified: false },
-      { label: 'Kalah (dadu 3-4)', value: 'Lapas + denda Rp 1.500.000', verified: false },
-      { label: 'Brutal (dadu 1-2)', value: 'Lapas + 50% uang disita', verified: false },
+      { label: 'Menang (dadu 5-6)', value: 'Kompensasi Rp 1.000.000', verified: true },
+      { label: 'Kalah (dadu 3-4)', value: 'Lapas + denda Rp 1.500.000', verified: true },
+      { label: 'Brutal (dadu 1-2)', value: 'Lapas + 50% uang disita', verified: true },
     ],
   },
   {
     category: 'Jalan Tol',
     items: [
-      { label: 'Biaya Tol', value: 'Rp 500.000', verified: false },
+      { label: 'Biaya Tol', value: 'Rp 500.000', verified: true },
       { label: 'Pindah ke tol lain', value: 'Ya, pilih tujuan', verified: false },
     ],
   },
@@ -119,7 +131,7 @@ export const RULES_REFERENCE: { category: string; items: { label: string; value:
       { label: 'Level 1', value: '1 Rumah Subsidi', verified: false },
       { label: 'Level 2', value: '2 Rumah Subsidi', verified: false },
       { label: 'Level 3', value: 'Rumah OKB', verified: false },
-      { label: 'Bangun saat gajian', value: 'Ya, sebelum jalan', verified: false },
+      { label: 'Bangun saat gajian', value: 'Ya, sebelum jalan', verified: true },
     ],
   },
   {
@@ -127,13 +139,13 @@ export const RULES_REFERENCE: { category: string; items: { label: string; value:
     items: [
       { label: 'Kartu Bebas Lapas', value: 'Bebas dari lapas tanpa bayar', verified: false },
       { label: 'Kartu Pelindung', value: 'Tangkal 1 musibah', verified: false },
-      { label: 'Stopwatch', value: 'Aktif setelah semua pemain 2 putaran', verified: false },
+      { label: 'Stopwatch', value: 'Aktif setelah semua pemain 2 putaran', verified: true },
     ],
   },
   {
     category: 'Dadu Kembar (Doubles)',
     items: [
-      { label: 'Extra turn on doubles', value: 'Ya (dapat giliran lagi)', verified: false },
+      { label: 'Extra turn on doubles', value: 'Tidak (tidak dapat giliran lagi)', verified: true },
       { label: 'Batas kembar berturut-turut', value: '3x = langsung Lapas', verified: false },
       { label: 'Dobel di Lapas', value: 'Bebas, tanpa extra turn', verified: false },
     ],

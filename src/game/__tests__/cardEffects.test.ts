@@ -30,9 +30,11 @@ describe('Takdir card effects', () => {
     BOARD_OVERRIDES.clear();
   });
 
-  it('t1 Lulus CPNS: +1,000,000', () => {
+  it('t1 Lulus CPNS: rollDice with evenReward 1,000,000', () => {
     const card = TAKDIR_CARDS.find(c => c.id === 't1')!;
-    expect(card.effect.money).toBe(1_000_000);
+    expect(card.effect.rollDice).toBe(true);
+    expect(card.effect.evenReward).toBe(1_000_000);
+    expect(card.effect.oddPenalty).toBe(500_000);
   });
 
   it('t5 Go To Lapas: goToJail = true', () => {
@@ -75,9 +77,11 @@ describe('Takdir card effects', () => {
     expect(card.effect.freeProperty).toBe(true);
   });
 
-  it('t19 Gajian Dobel: +2,500,000', () => {
+  it('t19 Gajian Dobel: rollDice with evenReward 2,500,000', () => {
     const card = TAKDIR_CARDS.find(c => c.id === 't19')!;
-    expect(card.effect.money).toBe(2_500_000);
+    expect(card.effect.rollDice).toBe(true);
+    expect(card.effect.evenReward).toBe(2_500_000);
+    expect(card.effect.oddPenalty).toBe(800_000);
   });
 
   it('t20 Kartu Pelindung: protection = true', () => {

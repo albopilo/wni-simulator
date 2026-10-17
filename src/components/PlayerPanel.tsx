@@ -20,8 +20,8 @@ export default function PlayerPanel({ players, currentPlayerId }: PlayerPanelPro
             key={player.id}
             className={`rounded-2xl p-3 transition-all duration-300 ${
               isCurrent
-                ? 'bg-stone-700/80 ring-2 scale-[1.02]'
-                : 'bg-stone-800/40'
+                ? 'bg-paper-50 ring-2 scale-[1.02] border border-paper-300'
+                : 'bg-paper-200/60 border border-paper-300/50'
             } ${player.isBankrupt ? 'opacity-40' : ''}`}
             style={isCurrent ? { boxShadow: `0 0 20px ${player.color}40`, borderColor: player.color } : {}}
           >
@@ -33,37 +33,37 @@ export default function PlayerPanel({ players, currentPlayerId }: PlayerPanelPro
                 {player.emoji}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-stone-100 font-bold text-sm truncate">{player.name}</div>
-                <div className="flex items-center gap-1 text-xs text-stone-400">
+                <div className="text-navy-800 font-bold text-sm truncate">{player.name}</div>
+                <div className="flex items-center gap-1 text-xs text-navy-500">
                   <Wallet className="w-3 h-3" />
                   {formatMoneyFull(player.cash)}
                 </div>
               </div>
               {player.inJail && !player.isBankrupt && (
-                <div className="flex items-center gap-1 text-xs text-orange-400 bg-orange-500/20 px-2 py-1 rounded-lg">
+                <div className="flex items-center gap-1 text-xs text-rust-600 bg-rust-500/15 px-2 py-1 rounded-lg">
                   <Lock className="w-3 h-3" />
                   Lapas
                 </div>
               )}
               {player.getOutCards > 0 && (
-                <div className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded-lg">
+                <div className="flex items-center gap-1 text-xs text-forest-600 bg-forest-500/15 px-2 py-1 rounded-lg">
                   <KeyRound className="w-3 h-3" />
                   {player.getOutCards}
                 </div>
               )}
               {player.protectionCards > 0 && (
-                <div className="flex items-center gap-1 text-xs text-cyan-400 bg-cyan-500/20 px-2 py-1 rounded-lg">
+                <div className="flex items-center gap-1 text-xs text-navy-600 bg-navy-500/15 px-2 py-1 rounded-lg">
                   <Shield className="w-3 h-3" />
                   {player.protectionCards}
                 </div>
               )}
               {player.isBankrupt && (
-                <div className="text-xs text-red-400 bg-red-500/20 px-2 py-1 rounded-lg font-bold">
+                <div className="text-xs text-rust-600 bg-rust-500/15 px-2 py-1 rounded-lg font-bold">
                   Bangkrut
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-3 text-xs text-stone-500">
+            <div className="flex items-center gap-3 text-xs text-navy-500">
               <span className="flex items-center gap-1">
                 <Home className="w-3 h-3" />
                 {player.properties.length} tanah
@@ -74,7 +74,7 @@ export default function PlayerPanel({ players, currentPlayerId }: PlayerPanelPro
                   {houseCount} rumah
                 </span>
               )}
-              <span className="ml-auto text-amber-400/80 font-semibold">Total: {formatMoneyFull(netWorth)}</span>
+              <span className="ml-auto text-gold-600 font-semibold">Total: {formatMoneyFull(netWorth)}</span>
             </div>
           </div>
         );

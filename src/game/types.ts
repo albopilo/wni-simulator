@@ -67,6 +67,7 @@ export interface GameCard {
   type: CardType;
   effect: CardEffect;
   hasStopwatch?: boolean;
+  affectsAllPlayers?: boolean;
   // For musibah cards with tiered effects
   tieredMoney?: MusibahEffect;
   tieredPayPerProperty?: MusibahEffect;
@@ -108,6 +109,15 @@ export interface LogEntry {
   id: number;
   text: string;
   type: 'info' | 'money' | 'bad' | 'good' | 'move' | 'card';
+}
+
+export interface Transaction {
+  id: number;
+  amount: number;
+  sender: string;
+  receiver: string;
+  reason: string;
+  turn: number;
 }
 
 export interface DiceRoll {
